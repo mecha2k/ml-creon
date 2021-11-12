@@ -51,7 +51,8 @@ class Creon:
             return self.obj_CpUtil_CpCybos.IsConnect != 0
         return False
 
-    def disconnect(self):
+    @staticmethod
+    def disconnect():
         plist = [
             "coStarter",
             "CpStart",
@@ -73,6 +74,7 @@ class Creon:
 
             status = obj.GetDibStatus()
             msg = obj.GetDibMsg1()
+            print(msg)
             if status != 0:
                 return None
 
@@ -492,7 +494,6 @@ class Creon:
         if not code.startswith("A"):
             code = "A" + code
         account_no, account_gflags = self.init_trade()
-        self.obj_CpTrade_CpTd0322
         self.obj_CpTrade_CpTd0322.SetInputValue(0, action)  # 1: 매도, 2: 매수
         self.obj_CpTrade_CpTd0322.SetInputValue(1, account_no)  # 계좌번호
         self.obj_CpTrade_CpTd0322.SetInputValue(2, account_gflags[0])  # 상품구분
@@ -592,8 +593,11 @@ class Creon:
         return result
 
 
+# 실시간 조회(subscribe)는 최대 400건
 class EventHandler:
-    # 실시간 조회(subscribe)는 최대 400건
+    def __init__(self, obj, cb):
+        self.obj = obj
+        self.cb = cb
 
     def set_attrs(self, obj, cb):
         self.obj = obj
@@ -651,8 +655,6 @@ class OrderEventHandler(EventHandler):
             "상품관리구분코드": self.obj.GetHeaderValue(8),
             "종목코드": self.obj.GetHeaderValue(9),
             "매매구분코드": self.obj.GetHeaderValue(12),
-            "체결구분코드": self.obj.GetHeaderValue(14),
-            "체결구분코드": self.obj.GetHeaderValue(14),
             "체결구분코드": self.obj.GetHeaderValue(14),
             "현금신용대용구분코드": self.obj.GetHeaderValue(17),
         }
