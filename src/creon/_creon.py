@@ -248,7 +248,9 @@ class Creon:
         self.obj_CpSysDib_StockChart.SetInputValue(6, ord(unit))
         self.obj_CpSysDib_StockChart.SetInputValue(9, ord("1"))  # 0: 무수정주가, 1: 수정주가
 
-        result = self.request(self.obj_CpSysDib_StockChart, dict(zip(range(len(_keys)), _keys)), cntidx=3, n=n)
+        result = self.request(
+            self.obj_CpSysDib_StockChart, dict(zip(range(len(_keys)), _keys)), cntidx=3, n=n
+        )
         result = result["data"]
         for dict_item in result:
             dict_item["code"] = code
@@ -261,7 +263,9 @@ class Creon:
                 dict_item[k] = int(dict_item[k])
 
             # additional fields
-            dict_item["diffratio"] = (dict_item["diff"] / (dict_item["close"] - dict_item["diff"])) * 100
+            dict_item["diffratio"] = (
+                dict_item["diff"] / (dict_item["close"] - dict_item["diff"])
+            ) * 100
 
         return result
 
@@ -356,7 +360,9 @@ class Creon:
         self.obj_CpSysDib_CpSvr7254.SetInputValue(5, 0)
         self.obj_CpSysDib_CpSvr7254.SetInputValue(6, ord("1"))  # '1': 순매수량, '2': 추정금액(백만원)
 
-        result = self.request(self.obj_CpSysDib_CpSvr7254, dict(zip(range(len(_keys)), _keys)), cntidx=1, n=n)
+        result = self.request(
+            self.obj_CpSysDib_CpSvr7254, dict(zip(range(len(_keys)), _keys)), cntidx=1, n=n
+        )
         result = result["data"]
         for dict_item in result:
             dict_item["code"] = code
@@ -395,7 +401,9 @@ class Creon:
             "기여도",
         ]
 
-        self.obj_CpSysDib_CpSvr8548.SetInputValue(0, ord(target))  # '1': KOSPI200, '2': 거래소전체, '4': 코스닥전체
+        self.obj_CpSysDib_CpSvr8548.SetInputValue(
+            0, ord(target)
+        )  # '1': KOSPI200, '2': 거래소전체, '4': 코스닥전체
 
         result = self.request(self.obj_CpSysDib_CpSvr8548, dict(zip(range(len(_keys)), _keys)))
         result = result["data"]
@@ -589,7 +597,9 @@ class Creon:
             18: "손익단가",
         }
 
-        result = self.request(self.obj_CpTrade_CpTd6033, data_fields, header_fields=header_fields, cntidx=7)
+        result = self.request(
+            self.obj_CpTrade_CpTd6033, data_fields, header_fields=header_fields, cntidx=7
+        )
         return result
 
 
@@ -629,7 +639,9 @@ class StockCurEventHandler(EventHandler):
             "contract_volume": self.obj.GetHeaderValue(17),
             "second": self.obj.GetHeaderValue(18),
             "price_type": chr(self.obj.GetHeaderValue(19)),  # 1: 동시호가시간 예상체결가, 2: 장중 체결가
-            "market_flag": chr(self.obj.GetHeaderValue(20)),  # '1': 장전예상체결, '2': 장중, '4': 장후시간외, '5': 장후예상체결
+            "market_flag": chr(
+                self.obj.GetHeaderValue(20)
+            ),  # '1': 장전예상체결, '2': 장중, '4': 장후시간외, '5': 장후예상체결
             "premarket_volume": self.obj.GetHeaderValue(21),
             "diffsign": chr(self.obj.GetHeaderValue(22)),
             "LP보유수량": self.obj.GetHeaderValue(23),
