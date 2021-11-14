@@ -153,7 +153,8 @@ class Creon:
 
     def get_stockfeatures(self, code):
         """
-        https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?boardseq=284&seq=11&page=1&searchString=%EA%B1%B0%EB%9E%98%EC%A0%95%EC%A7%80&p=8841&v=8643&m=9505
+        https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?
+        boardseq=284&seq=11&page=1&searchString=%EA%B1%B0%EB%9E%98%EC%A0%95%EC%A7%80&p=8841&v=8643&m=9505
         """
         if not code.startswith("A"):
             code = "A" + code
@@ -219,7 +220,8 @@ class Creon:
 
     def get_chart(self, code, target="A", unit="D", n=None, date_from=None, date_to=None):
         """
-        https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?boardseq=284&seq=102&page=1&searchString=StockChart&p=8841&v=8643&m=9505
+        https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?
+        boardseq=284&seq=102&page=1&searchString=StockChart&p=8841&v=8643&m=9505
         "전일대비"는 제공하지 않으므로 직접 계산해야 함
         target: 'A', 'U' == 종목, 업종
         unit: 'D', 'W', 'M', 'm', 'T' == day, week, month, min, tick
@@ -237,8 +239,8 @@ class Creon:
                 "low",
                 "close",
                 "diff",
-                "volume",
-                "price",
+                "volume",  # 거래량
+                "price",  # 거래대금
                 "diffsign",
             ]
         else:
@@ -247,6 +249,30 @@ class Creon:
 
         if date_to is None:
             date_to = util.get_str_today()
+
+        # CpSysDib.StockChart.SetInputValue(type, value)
+        # type code
+        #       0 - 종목코드(string): 주식(A003540), 업종(U001), ELW(J517016)의 종목코드
+        #       1 - 요청구분(char):
+        #           '1': 기간 요청 시 (주,월,분,틱은 불가)
+        #           '2': 갯수로 요청이고 분,틱 모드인 경우에는 요청 갯수 및 수신 갯수를 누적해서
+        #                다음 데이터 요청을 체크해야 함.( 요청 갯수 <= 수신 갯수 비교하는 로직 추가)
+        #       2 - 요청종료일(ulong): YYYYMMDD형식으로데이터의마지막(가장최근) 날짜 Default(0) - 최근거래날짜
+        #       3 - 요청시작일(ulong): YYYYMMDD형식으로데이터의시작(가장오래된) 날짜
+        #       4 - 요청개수(ulong): 요청할데이터의개수
+        #       5 - 필드(long array): 필드 배열
+        #           0: 날짜(ulong)
+        #           1:시간(long) - hhmm
+        #           2:시가(long or float)
+        #           3:고가(long or float)
+        #           4:저가(long or float)
+        #           5:종가(long or float)
+        #       6 - 차트구분(char): ('D': 일), ('W': 주), ('M': 월), ('m': 분), ('T': 틱)
+        #       7 - 주기(ushort): Default-1
+        #       8 - 갭보정여부(char): ('0': 갭무보정 [Default]), ('1': 갭보정)
+        #       9 - 수정주가(char): ('0': 무수정주가 [Default]), ('1': 수정주가)
+        #       10 - 거래량구분(char): ('1': 시간외거래량모두포함[Default]), ('2': 장종료시간외거래량만포함)
+        #                            ('3': 시간외거래량모두제외), ('4': 장전시간외거래량만포함)
 
         self.obj_CpSysDib_StockChart.SetInputValue(0, target + code)  # 주식코드: A, 업종코드: U
         if n is not None:
@@ -269,14 +295,12 @@ class Creon:
         result = result["data"]
         for dict_item in result:
             dict_item["code"] = code
-
             # type conversion
             dict_item["diffsign"] = chr(dict_item["diffsign"])
             for k in ["open", "high", "low", "close", "diff"]:
                 dict_item[k] = float(dict_item[k])
             for k in ["volume", "price"]:
                 dict_item[k] = int(dict_item[k])
-
             # additional fields
             dict_item["diffratio"] = (
                 dict_item["diff"] / (dict_item["close"] - dict_item["diff"])
@@ -441,7 +465,8 @@ class Creon:
         return result
 
     def subscribe_stockcur(self, code, cb):
-        # https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?boardseq=285&seq=16&page=3&searchString=%EC%8B%A4%EC%8B%9C%EA%B0%84&p=&v=&m=
+        # https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?
+        # boardseq=285&seq=16&page=3&searchString=%EC%8B%A4%EC%8B%9C%EA%B0%84&p=&v=&m=
         if not code.startswith("A"):
             code = "A" + code
         if code in self.stockcur_handlers:
@@ -469,7 +494,8 @@ class Creon:
             del self.stockcur_handlers[code]
 
     def subscribe_orderevent(self, cb):
-        # https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?boardseq=285&seq=16&page=3&searchString=%EC%8B%A4%EC%8B%9C%EA%B0%84&p=&v=&m=
+        # https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?
+        # boardseq=285&seq=16&page=3&searchString=%EC%8B%A4%EC%8B%9C%EA%B0%84&p=&v=&m=
         obj = win32com.client.Dispatch("Dscbo1.CpConclusion")
         handler = win32com.client.WithEvents(obj, OrderEventHandler)
         handler.set_attrs(obj, cb)
