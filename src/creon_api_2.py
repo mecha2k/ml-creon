@@ -1,9 +1,13 @@
 import pandas as pd
 import pprint
+import platform
 import os, re
 from datetime import datetime
 from dotenv import load_dotenv
-from creon import Creon
+
+if platform.system() == "Windows":
+    from creon import Creon
+
 
 if __name__ == "__main__":
     load_dotenv(verbose=True)
@@ -12,16 +16,16 @@ if __name__ == "__main__":
     cert = os.getenv("creon_cert")
     creon_path = "C:/ProgramData/CREON/STARTER/coStarter.exe /prj:cp"
 
-    creon = Creon()
-    conn = creon.connect(id_=id_, pwd=pwd, pwdcert=cert, c_path=creon_path)
-    if conn is True:
-        print("connection established to creonPlus...")
+    # creon = Creon()
+    # conn = creon.connect(id_=id_, pwd=pwd, pwdcert=cert, c_path=creon_path)
+    # if conn is True:
+    #     print("connection established to creonPlus...")
 
     # balance = creon.get_balance()
     # print(balance)
 
-    codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
-    print("kospi stock counts: ", len(codes))
+    # codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
+    # print("kospi stock counts: ", len(codes))
 
     # ticker = "005930"
     # index = codes.index("A" + ticker)
@@ -32,15 +36,17 @@ if __name__ == "__main__":
     # features = creon.get_stockfeatures(codes[index])
     # pprint.pp(features)
 
-    data = list()
-    index = list()
-    for code in codes:
-        code = re.findall(r"\d+", code)
-        index.append(code[0])
-        data.append(creon.get_stockfeatures(code[0]))
-    mareye_df = pd.DataFrame(data, index=index)
-    mareye_df.index.name = "code"
-    mareye_df.to_pickle("data/mareye.pkl")
+    # data = list()
+    # index = list()
+    # for code in codes:
+    #     code = re.findall(r"\d+", code)
+    #     index.append(code[0])
+    #     data.append(creon.get_stockfeatures(code[0]))
+    # mareye_df = pd.DataFrame(data, index=index)
+    # mareye_df.index.name = "code"
+    # mareye_df.to_pickle("data/mareye.pkl")
+
+    mareye_df = pd.read_pickle("data/mareye.pkl")
     print(mareye_df.head())
     print(mareye_df.info())
 
