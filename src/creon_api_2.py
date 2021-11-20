@@ -98,22 +98,32 @@ def analyze_market_data():
     market_df.to_csv("data/market_data_src.csv", encoding="utf-8-sig")
     print(market_df.head(10))
 
+    print(len(market_df))
     print(market_df["name_y"].isna().sum())
     df = market_df.copy().reset_index().dropna(axis=0).rename(columns={"name_y": "종목명"})
     df = df[myIndex]
     df = df.loc[df["매출액(백만원)"] > 10]
     vol_quantile = df["거래량"].quantile(q=0.3, interpolation="linear")
     df = df.loc[df["거래량"] > vol_quantile]
+    print(len(df))
 
     df["PBR"] = (df["현재가"] / df["BPS"]).round(2)
     df["PSR"] = (df["현재가"] / df["SPS"]).round(2)
     df["PCR"] = (df["현재가"] / df["CFPS"]).round(2)
     df["자본총계(백만원)"] = (df["시가총액"] * df["PBR"] * 100).astype(int)
 
+    equ_quantile = df["자본총계(백만원)"].quantile(q=0.05, interpolation="linear")
+    df = df.loc[df["자본총계(백만원)"] > equ_quantile]
+    print(len(df))
     df = df.loc[df["자본총계(백만원)"] > df["자본금(백만원)"]]
+    print(len(df))
+
     df = df.loc[df["PBR"] > 0.3]
+    print(len(df))
     df = df.loc[df["PCR"] > 1.0]
+    print(len(df))
     df = df.loc[df["PER"] > 3.0]
+    print(len(df))
 
     df["PBR_rank"] = df["PBR"].rank(ascending=True)
     df["PSR_rank"] = df["PSR"].rank(ascending=True)
