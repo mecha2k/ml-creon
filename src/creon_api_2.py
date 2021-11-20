@@ -130,6 +130,7 @@ def analyze_market_data():
     df["PCR_rank"] = df["PCR"].rank(ascending=True)
     df["PER_rank"] = df["PER"].rank(ascending=True)
     df["DIV_rank"] = df["배당수익률"].rank(ascending=False)
+    df["EV_rank"] = df["시가총액"].rank(ascending=False)
     df["rank_tot"] = df["PBR_rank"] + df["PSR_rank"] + df["PCR_rank"] + df["PER_rank"]
 
     df = df[
@@ -158,6 +159,7 @@ def analyze_market_data():
             "PCR_rank",
             "PER_rank",
             "DIV_rank",
+            "EV_rank",
             "rank_tot",
         ]
     ].sort_values(by="rank_tot", ascending=True)
