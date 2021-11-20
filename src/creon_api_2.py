@@ -52,51 +52,42 @@ myIndex = [
     "외인비중",
 ]
 
-if __name__ == "__main__":
+
+def get_market_data_creon():
     load_dotenv(verbose=True)
     id_ = os.getenv("creon_id")
     pwd = os.getenv("creon_pwd")
     cert = os.getenv("creon_cert")
     creon_path = "C:/ProgramData/CREON/STARTER/coStarter.exe /prj:cp"
 
-    # creon = Creon()
-    # conn = creon.connect(id_=id_, pwd=pwd, pwdcert=cert, c_path=creon_path)
-    # if conn is True:
-    #     print("connection established to creonPlus...")
+    creon = Creon()
+    conn = creon.connect(id_=id_, pwd=pwd, pwdcert=cert, c_path=creon_path)
+    if conn is True:
+        print("connection established to creonPlus...")
 
-    # balance = creon.get_balance()
-    # print(balance)
+    codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
+    print("kospi stock counts: ", len(codes))
 
-    # codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
-    # print("kospi stock counts: ", len(codes))
+    data = list()
+    index = list()
+    for code in codes:
+        code = re.findall(r"\d+", code)
+        index.append(code[0])
+        data.append(creon.get_stockfeatures(code[0]))
+    mareye_df = pd.DataFrame(data, index=index)
+    mareye_df.index.name = "code"
+    mareye_df.to_pickle("data/mareye.pkl")
 
-    # ticker = "005930"
-    # index = codes.index("A" + ticker)
+    marcap = creon.get_marketcap(target="2")  # '1': KOSPI200, '2': 거래소전체, '4': 코스닥전체
+    marcap_df = pd.DataFrame(marcap)
+    marcap_df.set_index("code", inplace=True)
+    marcap_df.to_pickle("data/marcap.pkl")
 
-    # status = creon.get_stockstatus(codes[index])
-    # print(status)
 
-    # features = creon.get_stockfeatures(codes[index])
-    # pprint.pp(features)
-
-    # data = list()
-    # index = list()
-    # for code in codes:
-    #     code = re.findall(r"\d+", code)
-    #     index.append(code[0])
-    #     data.append(creon.get_stockfeatures(code[0]))
-    # mareye_df = pd.DataFrame(data, index=index)
-    # mareye_df.index.name = "code"
-    # mareye_df.to_pickle("data/mareye.pkl")
-
+def analyze_market_data():
     mareye_df = pd.read_pickle("data/mareye.pkl")
     print(mareye_df.head())
     print(mareye_df.info())
-
-    # marcap = creon.get_marketcap(target="2")  # '1': KOSPI200, '2': 거래소전체, '4': 코스닥전체
-    # marcap_df = pd.DataFrame(marcap)
-    # marcap_df.set_index("code", inplace=True)
-    # marcap_df.to_pickle("data/marcap.pkl")
 
     marcap_df = pd.read_pickle("data/marcap.pkl")
     print(marcap_df.head())
@@ -107,26 +98,6 @@ if __name__ == "__main__":
     market_df.to_csv("data/market_data_src.csv", encoding="utf-8-sig")
     print(market_df.head(10))
 
-    start = datetime(2021, 10, 1)
-    end = datetime(2021, 12, 31)
-
-    # data = creon.get_chart(code=ticker, n=60)
-    # print(data[0])
-
-    # data = creon.get_chart(code=ticker, target="A", unit="D", date_from=start.strftime("%Y%m%d"))
-    # print(data[0])
-    #
-    # df = pd.DataFrame(data)
-    # df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
-    # df.set_index("date", inplace=True)
-    # print(df.tail())
-
-    # codes = mareye_df.index.values
-    # print(len(codes))
-    #
-    # mask = [code.endswith("0") for code in codes]
-    # df = market_df.loc[mask]
-
     print(market_df["name_y"].isna().sum())
     df = market_df.copy().reset_index().dropna(axis=0).rename(columns={"name_y": "종목명"})
     df = df[myIndex]
@@ -134,11 +105,15 @@ if __name__ == "__main__":
     vol_quantile = df["거래량"].quantile(q=0.3, interpolation="linear")
     df = df.loc[df["거래량"] > vol_quantile]
 
-    df["PBR"] = df["현재가"] / df["BPS"]
-    df["PSR"] = df["현재가"] / df["SPS"]
-    df["PCR"] = df["현재가"] / df["CFPS"]
+    df["PBR"] = (df["현재가"] / df["BPS"]).round(2)
+    df["PSR"] = (df["현재가"] / df["SPS"]).round(2)
+    df["PCR"] = (df["현재가"] / df["CFPS"]).round(2)
     df["자본총계(백만원)"] = (df["시가총액"] * df["PBR"] * 100).astype(int)
+
     df = df.loc[df["자본총계(백만원)"] > df["자본금(백만원)"]]
+    df = df.loc[df["PBR"] > 0.3]
+    df = df.loc[df["PCR"] > 1.0]
+    df = df.loc[df["PER"] > 3.0]
 
     df["PBR_rank"] = df["PBR"].rank(ascending=True)
     df["PSR_rank"] = df["PSR"].rank(ascending=True)
@@ -180,3 +155,42 @@ if __name__ == "__main__":
     df.to_csv("data/market_data.csv", encoding="utf-8-sig")
     print(df.head(20))
     print(len(df))
+
+
+if __name__ == "__main__":
+    # get_market_data_creon()
+    analyze_market_data()
+
+    # Sample code collection
+
+    # balance = creon.get_balance()
+    # print(balance)
+
+    # ticker = "005930"
+    # index = codes.index("A" + ticker)
+
+    # status = creon.get_stockstatus(codes[index])
+    # print(status)
+
+    # features = creon.get_stockfeatures(codes[index])
+    # pprint.pp(features)
+
+    # start = datetime(2021, 10, 1)
+    # end = datetime(2021, 12, 31)
+
+    # data = creon.get_chart(code=ticker, n=60)
+    # print(data[0])
+
+    # data = creon.get_chart(code=ticker, target="A", unit="D", date_from=start.strftime("%Y%m%d"))
+    # print(data[0])
+    #
+    # df = pd.DataFrame(data)
+    # df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    # df.set_index("date", inplace=True)
+    # print(df.tail())
+
+    # codes = mareye_df.index.values
+    # print(len(codes))
+    #
+    # mask = [code.endswith("0") for code in codes]
+    # df = market_df.loc[mask]
