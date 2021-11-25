@@ -6,7 +6,7 @@ import os
 from marcap import marcap_data
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-
+from pprint import pprint
 
 marcap_ind = {
     "Code": "종목코드",
@@ -97,16 +97,10 @@ if __name__ == "__main__":
     api_key = os.getenv("dart_key")
     dart = OpenDartReader(api_key)
 
-    start = datetime(2015, 1, 1)
-    end = datetime(2016, 12, 31)
+    start = datetime(2020, 1, 1)
+    end = datetime(2020, 12, 31)
 
-    try:
-        df = pd.read_pickle("data/marcap_period.pkl")
-        print(f"data reading from file...{len(df):,}")
-    except FileNotFoundError:
-        df = get_marcap_period(start=start, end=end)
-        df.to_pickle("data/marcap_period.pkl")
-
+    df = get_marcap_period(start=start, end=end)
     df = df.loc[df["Code"].str.endswith("0")]
     df = df.loc[df["Market"] == "KOSPI"]
     print(f"종목수(KOSPI, 보통주): {len(df):,}")
@@ -120,6 +114,7 @@ if __name__ == "__main__":
         print(f"{dt.year} : {len(data):,}")
     marcap_df = pd.concat(marcap_df)
     marcap_df = marcap_df.droplevel(1).rename_axis("Date")
+    print(marcap_df.head())
 
     fs, fs_all, keys = list(), list(), list()
     for dt in pd.date_range(start=start, end=end, freq="AS"):
@@ -131,33 +126,65 @@ if __name__ == "__main__":
         except FileNotFoundError:
             fs_df, fs_all_df = get_dart_fs(codes=codes, year=dt.year)
 
-        fs_df.rename(columns=fs_col_names, inplace=True)
-        # fs_df = fs_df.loc[(fs_df["개별/연결구분"] == "CFS")]
-        fs_df = fs_df[["계정명", "당기금액"]].droplevel(1).reset_index()
-        fs_df = fs_df.rename({"index": "종목"}, axis=1).set_index("종목")
-
-        fs_all_df.rename(columns=fs_col_names, inplace=True)
-        # fs_all_df = fs_all_df.loc[
-        #     (fs_all_df["재무제표구분"] == "BS")
-        #     | (fs_all_df["재무제표구분"] == "CIS")
-        #     | (fs_all_df["재무제표구분"] == "IS")
-        # ]
-        fs_all_df = fs_all_df[["계정명", "당기금액"]].droplevel(1).reset_index()
-        fs_all_df = fs_all_df.rename({"index": "종목"}, axis=1)
-
         fs.append(fs_df)
         fs_all.append(fs_all_df)
         keys.append(dt.year)
 
-    fs_df = pd.concat(fs, keys=keys)
-    fs_all_df = pd.concat(fs_all, keys=keys)
-    fs_df = fs_df.droplevel(1).rename_axis("Time")
-    fs_all_df = fs_all_df.droplevel(1).rename_axis("Time")
+    fs = pd.concat(fs, keys=keys)
+    fs_all = pd.concat(fs_all, keys=keys)
 
-    idx = pd.IndexSlice
-    fs_all_df.info()
-    # print(fs_all_df.loc["2015"][fs_all_df["종목"] == "005930"])
-    print(fs_all_df.head())
-    # print(fs_all_df.loc[idx["2015", "005930"], :])
-    fs_df.to_csv("data/fs_df.csv", encoding="utf-8-sig")
-    fs_all_df.to_csv("data/fs_all_df.csv", encoding="utf-8-sig")
+    fs_all = (
+        fs_all.reset_index()
+        .rename(columns={"level_0": "연도", "level_1": "종목"})
+        .drop("level_2", axis=1)
+        .set_index("연도")
+    )
+    fs_all.rename(columns=fs_col_names, inplace=True)
+
+    fs_annual = fs_all.loc["2020"]
+    fs_annual = fs_annual.loc[
+        (fs_annual["재무제표구분"] == "BS")
+        | (fs_annual["재무제표구분"] == "IS")
+        | (fs_annual["재무제표구분"] == "CF")
+    ]
+    fs_code = fs_annual.loc[fs_annual["종목"] == "005930"][["계정명", "당기금액"]].set_index("계정명")
+
+    accounts_name = {
+        "asset": "자산총계",
+        "liability": "부채총계",
+        "equity": "자본총계",
+        "capital": "자본금",
+        "sales": "수익(매출액)",
+        "gross_profit": "매출총이익",
+        "operating_income": "영업이익",
+        "net_income": "당기순이익(손실)",
+        "cash_flow_operating": "영업활동 현금흐름",
+        "cash_flow_financing": "재무활동 현금흐름",
+        "cash_flow_investing": "투자활동 현금흐름",
+        "EPS": "기본주당이익(손실)",
+    }
+
+    current = dict()
+    invest_info = dict()
+    for key, value in accounts_name.items():
+        current[key] = int(fs_code.at[value, "당기금액"])
+        invest_info[value] = current[key]
+        print(f"{value}: {current[key]:,}")
+
+    marcap_annual = marcap_df.loc["2020"].set_index("Code")
+    marcap_annual.info()
+
+    invest_info["종목"] = "005930"
+    invest_info["종가"] = int(marcap_annual.at["005930", "Close"])
+    invest_info["거래량"] = int(marcap_annual.at["005930", "Volume"])
+    invest_info["거래대금"] = int(marcap_annual.at["005930", "Amount"])
+    invest_info["시가총액(백만원)"] = int(marcap_annual.at["005930", "Marcap"])
+    invest_info["상장주식수"] = int(marcap_annual.at["005930", "Stocks"])
+    invest_info["PER"] = invest_info["종가"] / current["EPS"]
+    invest_info["PBR"] = invest_info["시가총액(백만원)"] / current["equity"]
+    invest_info["PSR"] = invest_info["시가총액(백만원)"] / current["sales"]
+    invest_info["PCR"] = invest_info["시가총액(백만원)"] / current["cash_flow_operating"]
+    invest_info["ROE"] = current["net_income"] / current["equity"]
+    pprint(invest_info)
+
+    # fs_code.to_csv("data/ss.csv", encoding="utf-8-sig")
