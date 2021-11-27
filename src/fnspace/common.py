@@ -98,17 +98,3 @@ if __name__ == "__main__":
     fs_df.to_pickle(f"data/fs_company_all_{timenow.year}.pkl")
     print(fs_df.info())
     print(fs_df.head())
-
-    # fs_df = pd.read_pickle(f"data/fs_company_all_2021.pkl")
-    # fs_df = fs_df.reset_index().rename(columns={"level_0": "code"}).set_index("code")
-    # print(fs_df)
-
-    # codes = list(fs_df.index.unique())
-    # market = market_df.set_index("code")
-    # for code in codes:
-    #     names = market.at[code, "종목명"]
-
-    # code = "000660"
-    # df = fs_df.loc[code].set_index("DATE")[list(index.fnspaceItems.values())]
-    # df.to_csv(f"data/fs_{code}_net.csv", encoding="utf-8-sig")
-    # print(df)

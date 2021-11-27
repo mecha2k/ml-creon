@@ -46,7 +46,8 @@ if __name__ == "__main__":
     print(f"{len(df):,}")
 
     df = df.droplevel(1).rename_axis("Date")
-    print(df.groupby("Date").first())
+    print(df.info())
+    # print(df.groupby("Date").first())
     # for dt in pd.date_range(start=start, end=end, freq="AS"):
     #     data = df.loc[str(dt.year)]
     #     vol_quantile = data["Volume"].quantile(q=0.3, interpolation="linear")
