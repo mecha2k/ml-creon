@@ -92,8 +92,8 @@ def get_dart_fs(codes, year):
     return fs_df, fs_all_df
 
 
-def get_investing_info(code, fs_df, marcap_df):
-    accounts_name = {
+def get_investing_fs_all_info(code, fs_df, marcap_df):
+    account_name = {
         "asset": "자산총계",
         "liability": "부채총계",
         "equity": "자본총계",
@@ -107,18 +107,36 @@ def get_investing_info(code, fs_df, marcap_df):
         "cash_flow_investing": "투자활동 현금흐름",
         "EPS": "기본주당이익(손실)",
     }
+    print(account_name)
+
+
+def get_investing_info(code, fs_df, marcap_df):
+    account_name = {
+        "asset": "자산총계",
+        "liability": "부채총계",
+        "equity": "자본총계",
+        "capital": "자본금",
+        "sales": "매출액",
+        "operating_income": "영업이익",
+        "net_income": "당기순이익",
+    }
 
     fsvalue = fs_df.index.values
-    check = all(item in fsvalue for item in accounts_name.values())
+    check = all(item in fsvalue for item in account_name.values())
     if check is False:
         print(f"{marcap_df.at[code, 'Name']} 계정 항목이 없습니다.")
         return None
 
     current = dict()
     invest_info = dict()
-    for key, value in accounts_name.items():
-        current[key] = int(fs_df.at[value, "당기금액"])
-        invest_info[value] = current[key]
+    for key, value in account_name.items():
+        if value in fs.index.values:
+            current[key] = int(fs_df.at[value, "당기금액"].replace(",", ""))
+            invest_info[value] = current[key]
+        else:
+            invest_info[value] = None
+
+    invest_info["PER"], invest_info["PBR"], invest_info["PSR"] = None, None, None
 
     invest_info["종목"] = code
     invest_info["회사명"] = marcap_df.at[code, "Name"]
@@ -127,11 +145,14 @@ def get_investing_info(code, fs_df, marcap_df):
     invest_info["거래대금"] = int(marcap_df.at[code, "Amount"])
     invest_info["시가총액(백만원)"] = int(marcap_df.at[code, "Marcap"])
     invest_info["상장주식수"] = int(marcap_df.at[code, "Stocks"])
-    invest_info["PER"] = invest_info["종가"] / current["EPS"]
-    invest_info["PBR"] = invest_info["시가총액(백만원)"] / current["equity"]
-    invest_info["PSR"] = invest_info["시가총액(백만원)"] / current["sales"]
-    invest_info["PCR"] = invest_info["시가총액(백만원)"] / current["cash_flow_operating"]
-    invest_info["ROE"] = current["net_income"] / current["equity"]
+    if invest_info["당기순이익"]:
+        invest_info["PER"] = invest_info["시가총액(백만원)"] / invest_info["당기순이익"]
+    if invest_info["자본총계"]:
+        invest_info["PBR"] = invest_info["시가총액(백만원)"] / invest_info["자본총계"]
+    if invest_info["매출액"]:
+        invest_info["PSR"] = invest_info["시가총액(백만원)"] / invest_info["매출액"]
+    # invest_info["PCR"] = invest_info["시가총액(백만원)"] / current["cash_flow_operating"]
+    # invest_info["ROE"] = current["net_income"] / current["equity"]
 
     return invest_info
 
@@ -163,25 +184,22 @@ if __name__ == "__main__":
         except FileNotFoundError:
             fs, fs_all = get_dart_fs(codes=codes, year=dt.year)
 
-        fs_all.rename(columns=fs_col_names, inplace=True)
-        fs_all = (
-            fs_all.reset_index()
-            .rename(columns={"level_0": "종목"})
-            .drop("level_1", axis=1)
-            .set_index("종목")
-        )
-        fs_all = fs_all.loc[
-            (fs_all["재무제표구분"] == "BS") | (fs_all["재무제표구분"] == "IS") | (fs_all["재무제표구분"] == "CF")
-        ]
+        fs.rename(columns=fs_col_names, inplace=True)
+        fs = fs.reset_index().rename(columns={"level_0": "종목"})
+        fs = fs.drop("level_1", axis=1).set_index("종목")
+        fs = fs.loc[(fs["개별/연결구분"] == "CFS")]
 
+        fs_all.rename(columns=fs_col_names, inplace=True)
+        fs_all = fs_all.reset_index().rename(columns={"level_0": "종목"})
+        fs_all = fs_all.drop("level_1", axis=1).set_index("종목")
+        mask = (fs_all["재무제표구분"] == "BS") | (fs_all["재무제표구분"] == "IS") | (fs_all["재무제표구분"] == "CF")
+        fs_all = fs_all.loc[mask]
+
+        codes = ["005380"]
         data = list()
         for code in codes:
-            fs_df = fs_all.loc[code][["계정명", "당기금액"]].set_index("계정명")
-            if fs_df is None:
-                print(f"financial statement (fs_all) of {code} does not exist...")
-                continue
-
-            invest_info = get_investing_info(code, fs_df, marcap_df)
-            if invest_info:
+            if code in fs.index.values:
+                fs_df = fs.loc[code][["계정명", "당기금액"]].set_index("계정명")
+                invest_info = get_investing_info(code, fs_df, marcap_df)
                 data.append(invest_info)
                 print(f"{invest_info['회사명']} 종목이 추가되었습니다.")

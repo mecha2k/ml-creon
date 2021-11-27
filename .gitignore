@@ -12,11 +12,11 @@ yarn-error.log*
 lerna-debug.log*
 
 agents
+src/fnspace/data
 
 .DS_Store
 .vscode
 .idea
-.env
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
