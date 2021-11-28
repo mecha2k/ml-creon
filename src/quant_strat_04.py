@@ -58,9 +58,71 @@ def get_stock_price_fdr_file(start, end):
     return fdr_df
 
 
+def analyze_strategy(stock_no, fdr_df, fs_df, start, end):
+    stocks, times, annual_yield = list(), list(), list()
+    for dtime in pd.date_range(start, end, freq="AS"):
+        dt = dtime.year
+        fs = fs_df.loc[str(dt)]
+        fs = fs.drop_duplicates(subset="code", keep="first")
+        fs = fs.loc[fs["매출액"] > 10]
+        # codes = fs["code"].values
+
+        df = fdr_df.loc[str(dt)].reset_index().drop("date", axis=1)
+
+        df = pd.merge(fs, df, how="inner", on="code")
+        df = pd.merge(df, market_df[["code", "종목명"]], how="inner", on="code")
+        df = df.set_index("code")
+
+        vol_quantile = df["Volume"].quantile(q=0.3, interpolation="linear")
+        df = df.loc[df["Volume"] > vol_quantile]
+        equ_quantile = df["자본총계"].quantile(q=0.05, interpolation="linear")
+        df = df.loc[df["자본총계"] > equ_quantile]
+        df = df.loc[df["자본총계"] > df["자본금"]]
+
+        df = df.loc[df["PBR"] > 0.5]
+        df = df.loc[df["PCR"] > 2.0]
+        df = df.loc[df["PER"] > 3.0]
+        df = df.loc[df["PEG"] > 0.0]
+
+        df["PBR_rank"] = df["PBR"].rank(ascending=True)
+        df["PSR_rank"] = df["PSR"].rank(ascending=True)
+        df["PCR_rank"] = df["PCR"].rank(ascending=True)
+        df["PER_rank"] = df["PER"].rank(ascending=True)
+        df["PEG_rank"] = df["PEG"].rank(ascending=True)
+        df["DIV_rank"] = df["현금배당수익률"].rank(ascending=False)
+        df["EV_rank"] = df["EV"].rank(ascending=False)
+        df["rank_tot"] = (
+            df["PBR_rank"]
+            + df["PSR_rank"]
+            + df["PCR_rank"]
+            # + df["PER_rank"]
+            + df["PEG_rank"]
+            # + df["DIV_rank"]
+            # + df["EV_rank"]
+        )
+
+        df = df.sort_values(by=["rank_tot"], axis=0, ascending=True)
+        # df = df[["종목명", "EV_rank", "rank_tot", "Change"]]
+        df = df.iloc[:stock_no]
+        stocks.append(df)
+        times.append(dtime)
+
+        cagr = 0
+        for code in df.index.values:
+            cagr += (df.at[code, "Change"]) / stock_no
+        annual_yield.append(cagr)
+
+    stocks = pd.concat(stocks, keys=times)
+    stocks = stocks.reset_index().rename(columns={"level_0": "date"}).set_index("date")
+
+    return {"stocks": stocks, "yield": annual_yield}
+
+
 if __name__ == "__main__":
     start = datetime(2012, 1, 1)
     end = datetime(2020, 12, 31)
+
+    stock_no = 10
 
     market_df = pd.read_pickle("data/market_data.pkl")
     market_df = market_df.reset_index().drop_duplicates(subset="code", keep="first")
@@ -81,60 +143,20 @@ if __name__ == "__main__":
     # get_stock_price_fdr(codes, start=start, end=end)
     fdr_df = get_stock_price_fdr_file(start=start, end=end)
 
-    stock_no = 10
-    annual_yield = list()
-    for dtime in pd.date_range(start, end, freq="AS"):
-        dt = dtime.year
-        fs = fs_df.loc[str(dt)]
-        fs = fs.drop_duplicates(subset="code", keep="first")
-        fs = fs.loc[fs["매출액"] > 10]
-        codes = fs["code"].values
-
-        df = fdr_df.loc[str(dt)].reset_index().drop("date", axis=1)
-
-        df = pd.merge(fs, df, how="inner", on="code")
-        df = pd.merge(df, market_df[["code", "종목명"]], how="inner", on="code")
-        df = df.set_index("code")
-        # df.to_csv(f"data/quant_strat.csv", encoding="utf-8-sig")
-
-        vol_quantile = df["Volume"].quantile(q=0.3, interpolation="linear")
-        df = df.loc[df["Volume"] > vol_quantile]
-        equ_quantile = df["자본총계"].quantile(q=0.05, interpolation="linear")
-        df = df.loc[df["자본총계"] > equ_quantile]
-        df = df.loc[df["자본총계"] > df["자본금"]]
-
-        df = df.loc[df["PBR"] > 0.3]
-        print(len(df))
-        df = df.loc[df["PCR"] > 1.0]
-        print(len(df))
-        df = df.loc[df["PER"] > 3.0]
-        print(len(df))
-
-        df["PBR_rank"] = df["PBR"].rank(ascending=True)
-        df["PSR_rank"] = df["PSR"].rank(ascending=True)
-        df["PCR_rank"] = df["PCR"].rank(ascending=True)
-        df["PER_rank"] = df["PER"].rank(ascending=True)
-        df["DIV_rank"] = df["현금배당수익률"].rank(ascending=False)
-        df["EV_rank"] = df["EV"].rank(ascending=False)
-        df["rank_tot"] = df["PBR_rank"] + df["PSR_rank"] + df["PCR_rank"] + df["PER_rank"]
-
-        df = df.sort_values(by=["rank_tot"], axis=0, ascending=True)
-        df = df[["종목명", "EV_rank", "rank_tot", "Change"]]
-        df = df.iloc[:10]
-        print(df)
-
-        cagr = 0
-        for code in df.index.values:
-            cagr += (df.at[code, "Change"]) / stock_no
-        print(f"CAGR : {cagr:.2f}%")
-        annual_yield.append(cagr)
+    results = analyze_strategy(stock_no=stock_no, fdr_df=fdr_df, fs_df=fs_df, start=start, end=end)
+    df = results["stocks"][["code", "종목명", "Close", "Change"]]
+    df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
+    print(df.tail(10))
 
     returns = 1
-    for annual in annual_yield:
+    for annual in results["yield"]:
         returns *= annual
-        print(f"{annual:.2f}, {returns:.2f}")
+        print(f"annual and total returns : {annual:.2f}, {returns:.2f}")
 
-    # df = fdr.DataReader("084010", datetime(2020, 4, 1), datetime(2021, 4, 1))
+    CAGR = (pow(returns, 1 / (end.year - start.year + 1)) - 1) * 100
+    print(f"\nCAGR : {CAGR:.2f}%")
+
+    # df = fdr.DataReader("003690", datetime(2020, 4, 1), datetime(2021, 4, 1))
     # df = df.drop("Change", axis=1).resample("MS").first()
     # df["Change"] = (1 + df["Close"].pct_change()).cumprod()
     # print(df)
