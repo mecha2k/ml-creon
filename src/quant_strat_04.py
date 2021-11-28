@@ -30,45 +30,51 @@ fnspaceNames = {
 }
 
 
-def get_stock_price_fdr(codes, start, end):
-    for dt in pd.date_range(start=start, end=end, freq="12MS"):
+def get_stock_price_fdr(codes, start):
+    for dt in pd.date_range(start=start, end=datetime.now(), freq="12MS"):
         fdr_df = list()
         for code in codes:
             df = fdr.DataReader(code, datetime(dt.year, 1, 1), datetime(dt.year, 12, 31))
             if df.empty is False:
-                df = df.drop("Change", axis=1).resample("MS").first()
-                # CAGR (Compound Annual Growth Rate)
-                df["Yield"] = (1 + df["Close"].pct_change()).cumprod()
-                fdr_df.append(df.iloc[-1])
+                fdr_df.append(df)
         fdr_df = pd.concat(fdr_df, keys=codes, names=["code"])
-        fdr_df = fdr_df.unstack(level=-1)
         fdr_df.to_pickle(f"data/fdr_stock_{dt.year}.pkl")
         print(f"fdr_stock_{dt.year} file saved...")
 
 
 def get_stock_price_fdr_file(start):
-    fdr_df, keys = list(), list()
+    fdr_df = list()
     for dt in pd.date_range(start=start, end=datetime.now(), freq="12MS"):
         df = pd.read_pickle(f"data/fdr_stock_{dt.year}.pkl")
         fdr_df.append(df)
-        keys.append(dt)
-    fdr_df = pd.concat(fdr_df, keys=keys, names=["date"])
-    fdr_df = fdr_df.reset_index().set_index("date")
-    return fdr_df
+    return pd.concat(fdr_df)
 
 
-def analyze_strategy(stock_no, fdr_df, fs_df, start, end):
+def analyze_strategy(stock_no, fdr_df, fs_df, start):
     stocks, times, annual_yield = list(), list(), list()
-    for dtime in pd.date_range(start, end, freq="AS"):
-        dt = dtime.year
-        fs = fs_df.loc[str(dt)]
+    for dtime in pd.date_range(start, datetime.now(), freq="12MS"):
+        if dtime.year == datetime.now().year:
+            break
+
+        fs = fs_df.loc[str(dtime.year)]
         fs = fs.drop_duplicates(subset="code", keep="first")
         fs = fs.loc[fs["매출액"] > 10]
-        # codes = fs["code"].values
 
-        df = fdr_df.loc[str(dt)].reset_index().drop("date", axis=1)
+        sday = dtime.strftime("%Y-%m-%d")
+        eday = datetime(dtime.year + 1, dtime.month, dtime.day).strftime("%Y-%m-%d")
+        df = fdr_df.loc[sday:eday]
 
-        df = pd.merge(fs, df, how="inner", on="code")
+        # CAGR (Compound Annual Growth Rate)
+        dfs = list()
+        codes = df["code"].unique()
+        for code in codes:
+            dfc = df.loc[df["code"] == code].resample("MS").first()
+            dfc["Yield"] = (1 + dfc["Close"].pct_change()).cumprod()
+            dfs.append(dfc.iloc[-1])
+        dfs = pd.concat(dfs, keys=codes)
+        dfs = dfs.unstack(level=-1)
+
+        df = pd.merge(fs, dfs, how="inner", on="code")
         df = pd.merge(df, market_df[["code", "종목명"]], how="inner", on="code")
         df = df.set_index("code")
 
@@ -80,7 +86,7 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start, end):
 
         df = df.loc[df["PBR"] > 0.5]
         df = df.loc[df["PCR"] > 2.0]
-        df = df.loc[df["PER"] > 3.0]
+        df = df.loc[df["PER"] > 5.0]
         df = df.loc[df["PEG"] > 0.0]
 
         df["PBR_rank"] = df["PBR"].rank(ascending=True)
@@ -94,21 +100,20 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start, end):
             df["PBR_rank"]
             + df["PSR_rank"]
             + df["PCR_rank"]
-            # + df["PER_rank"]
+            + df["PER_rank"]
             + df["PEG_rank"]
-            # + df["DIV_rank"]
+            + df["DIV_rank"]
             # + df["EV_rank"]
         )
 
         df = df.sort_values(by=["rank_tot"], axis=0, ascending=True)
-        # df = df[["종목명", "EV_rank", "rank_tot", "Change"]]
         df = df.iloc[:stock_no]
         stocks.append(df)
         times.append(dtime)
 
         cagr = 0
         for code in df.index.values:
-            cagr += (df.at[code, "Change"]) / stock_no
+            cagr += (df.at[code, "Yield"]) / stock_no
         annual_yield.append(cagr)
 
     stocks = pd.concat(stocks, keys=times)
@@ -117,7 +122,7 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start, end):
     return {"stocks": stocks, "yield": annual_yield}
 
 
-def quant_investing(stock_no, start, end):
+def quant_investing(stock_no, start):
     fs_df = pd.read_pickle(f"fnspace/data/fs_company_all_2021.pkl")
     fs_df = (
         fs_df.reset_index()
@@ -129,9 +134,10 @@ def quant_investing(stock_no, start, end):
     fs_df.index = pd.to_datetime(fs_df.index)
 
     fdr_df = get_stock_price_fdr_file(start=start)
+    fdr_df = fdr_df.reset_index().set_index("Date")
 
-    results = analyze_strategy(stock_no=stock_no, fdr_df=fdr_df, fs_df=fs_df, start=start, end=end)
-    df = results["stocks"][["code", "종목명", "Close", "Change"]]
+    results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
+    df = results["stocks"]
     df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
     print(df.tail(10))
 
@@ -140,27 +146,33 @@ def quant_investing(stock_no, start, end):
         returns *= annual
         print(f"annual and total returns : {annual:.2f}, {returns:.2f}")
 
-    CAGR = (pow(returns, 1 / (end.year - start.year + 1)) - 1) * 100
+    CAGR = (pow(returns, 1 / len(results["yield"])) - 1) * 100
     print(f"\nCAGR : {CAGR:.2f}%")
 
 
 if __name__ == "__main__":
-    start = datetime(2021, 1, 1)
-    end = datetime(2021, 12, 31)
-
-    stock_no = 10
-
     market_df = pd.read_pickle("data/market_data.pkl")
     market_df = market_df.reset_index().drop_duplicates(subset="code", keep="first")
     market_df = market_df.dropna(axis=0).rename(columns={"name_y": "종목명"})
     market_df = market_df[marcapIndex]
     codes = market_df["code"].values
+    names = market_df["종목명"].values
+
+    start = datetime(2012, 5, 1)
 
     # get stock prices from financeDataReader yearly
-    get_stock_price_fdr(codes, start, end)
+    # get_stock_price_fdr(codes, start)
 
-    # quant_investing(stock_no, start)
-    # get_stock_price_fdr_file(start=start)
+    quant_investing(stock_no=10, start=start)
+
+    codes = ["084690", "001120"]
+    df = get_stock_price_fdr_file(start=start)
+    df = df.reset_index().set_index("Date")
+    df = df.sort_index().loc["2020-5-1":"2021-5-30"]
+    for code in codes:
+        dfc = df.loc[df["code"] == code].resample("MS").first()
+        dfc["Yield"] = (1 + dfc["Close"].pct_change()).cumprod()
+        print(dfc)
 
     # df = fdr.DataReader("003690", datetime(2020, 4, 1), datetime(2021, 4, 1))
     # df = df.drop("Change", axis=1).resample("MS").first()
