@@ -163,16 +163,19 @@ if __name__ == "__main__":
     # get stock prices from financeDataReader yearly
     # get_stock_price_fdr(codes, start)
 
-    quant_investing(stock_no=10, start=start)
+    for m in range(3, 10):
+        start = datetime(2012, m, 1)
+        print(f"start : {start}")
+        quant_investing(stock_no=10, start=start)
 
-    codes = ["084690", "001120"]
-    df = get_stock_price_fdr_file(start=start)
-    df = df.reset_index().set_index("Date")
-    df = df.sort_index().loc["2020-5-1":"2021-5-30"]
-    for code in codes:
-        dfc = df.loc[df["code"] == code].resample("MS").first()
-        dfc["Yield"] = (1 + dfc["Close"].pct_change()).cumprod()
-        print(dfc)
+    # codes = ["084690", "001120"]
+    # df = get_stock_price_fdr_file(start=start)
+    # df = df.reset_index().set_index("Date")
+    # df = df.sort_index().loc["2020-5-1":"2021-5-30"]
+    # for code in codes:
+    #     dfc = df.loc[df["code"] == code].resample("MS").first()
+    #     dfc["Yield"] = (1 + dfc["Close"].pct_change()).cumprod()
+    #     print(dfc)
 
     # df = fdr.DataReader("003690", datetime(2020, 4, 1), datetime(2021, 4, 1))
     # df = df.drop("Change", axis=1).resample("MS").first()
