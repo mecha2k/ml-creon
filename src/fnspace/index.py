@@ -1,5 +1,19 @@
 marcapIndex = [
     "Code",
+    "Name",
+    "Market",
+    "Close",
+    "Open",
+    "High",
+    "Low",
+    "Volume",
+    "Amount",
+    "Marcap",
+    "Stocks",
+]
+
+creonIndex = [
+    "Code",
     "종목명",
     "현재가",
     "시가",

@@ -9,7 +9,7 @@ from marcap import marcap_data
 from datetime import datetime
 from dotenv import load_dotenv
 from pprint import pprint
-from fnspace.index import fnspaceItems, marcapIndex
+from fnspace.index import fnspaceItems, creonIndex, marcapIndex
 
 fnspaceNames = {
     "Free Cash Flow2": "FCF",
@@ -46,15 +46,16 @@ def get_investing_info_data():
     creon_df = pd.read_pickle("data/market_data.pkl")
     creon_df = creon_df.reset_index().drop_duplicates(subset="code", keep="first")
     creon_df = creon_df.dropna(axis=0).rename(columns={"name_y": "종목명", "code": "Code"})
-    creon_df = creon_df[marcapIndex]
+    creon_df = creon_df[creonIndex]
 
     fdr_df = pd.read_pickle("data/large/marcap_data_all_2021.pkl")
 
     # df = marcap_data(start="2010-01-01", end="2021-12-31")
     # df = df.loc[df["Market"] == "KOSPI"]
-    # df = df.loc[df["Code"].str.endswith("0")]
-    # df.to_pickle("data/large/marcap_data_all_2021.pkl")
-    # print(df)
+    # fdr_df = df.loc[df["Code"].str.endswith("0")]
+    # fdr_df = fdr_df[marcapIndex]
+    # fdr_df.to_pickle("data/large/marcap_data_all_2021.pkl")
+    # print(fdr_df.info())
 
     return fs_df, creon_df, fdr_df
 
@@ -78,11 +79,10 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         dfs = list()
         codes = df["Code"].unique()
         for code in codes:
-            dfc = df.loc[df["Code"] == code]
+            dfc = df.loc[df["Code"] == code].reset_index().rename(columns={"Date": "eDate"})
             ret = dfc["Close"].pct_change().dropna()
             cumulative = (1 + ret).cumprod()
             highmark = cumulative.cummax()
-            dfc = dfc.resample("MS").first()
             dfc["Yield"] = (1 + dfc["Close"].pct_change()).cumprod()
             dfc["MDD"] = np.min(cumulative / highmark - 1)
             dfs.append(dfc.iloc[-1])
@@ -90,7 +90,6 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         dfs = dfs.unstack(level=-1)
 
         df = pd.merge(fs, dfs, how="inner", on="Code")
-        df = pd.merge(df, creon_df[["Code", "종목명"]], how="inner", on="Code")
         df = df.set_index("Code")
 
         vol_quantile = df["Volume"].quantile(q=0.3, interpolation="linear")
@@ -166,22 +165,12 @@ def confirm_strategy(start, fdr_df, fs_df):
 
     codes = ["120110"]
     for code in codes:
-        stock = stock.loc[fdr_df["Code"] == code]
-        stock = stock[["Code", "Name", "Close", "Volume", "Amount"]]
-        print(stock)
+        stock = stock.loc[stock["Code"] == code]
+        title = f"{stock['Name'][0]} ({code})"
         stock = stock["Close"].pct_change()
-        print(stock)
         stock.plot_earnings(savefig="data/qs_earnings.png", start_balance=10000)
-        # qs.reports.html(returns=stock, benchmark=None, output="data/quantstats.html")
-
-        # print(qs.stats.sharpe(stock))
-        # print(stock.sharpe())
-        # print(stock.monthly_returns())
-        # print(stock.max_drawdown())
-        #
-        # qs.reports.plots(stock, mode="basic")
+        qs.reports.html(returns=stock, benchmark=None, title=title, output=f"data/quantstats.html")
         # qs.reports.metrics(stock, mode="basic")
-        # qs.reports.html(stock, "AAPL", output="quantstats/results/quantstats-aapl.html")
 
     # KOSPI 지수 가져오기 (벤치마크)
     # 매출액 성장률
@@ -215,12 +204,6 @@ def confirm_strategy(start, fdr_df, fs_df):
     #     dfc["Yield"] = (1 + dfc["Close"].pct_change()).cumprod()
     #     print(dfc)
 
-    # stocks = fdr.StockListing('KOSPI')
-    df = fdr.DataReader("120110", datetime(2020, 8, 1), datetime(2021, 8, 1))
-    df = df.drop("Change", axis=1).resample("MS").first()
-    df["Change"] = (1 + df["Close"].pct_change()).cumprod()
-    print(df)
-
 
 if __name__ == "__main__":
     stock_no = 10
@@ -228,11 +211,11 @@ if __name__ == "__main__":
 
     stime = time.time()
     fs_df, creon_df, fdr_df = get_investing_info_data()
-    # for mon in range(7, 8):
-    #     start = datetime(2012, mon + 1, 1)
-    #     print(f"start : {start}")
-    #     results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
-    #     investing_yields(results)
+    for mon in range(2, 10):
+        start = datetime(2012, mon + 1, 1)
+        print(f"start : {start}")
+        results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
+        investing_yields(results)
 
     # confirm_strategy(start, fdr_df, fs_df)
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
