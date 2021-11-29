@@ -9,27 +9,7 @@ from marcap import marcap_data
 from datetime import datetime
 from dotenv import load_dotenv
 from pprint import pprint
-from fnspace.index import fnspaceItems, creonIndex, marcapIndex
-
-fnspaceNames = {
-    "Free Cash Flow2": "FCF",
-    "EBITDA2": "EBITDA",
-    "ROE(지배)": "ROE",
-    "EPS(지배, Adj.)": "EPS",
-    "BPS(지배, Adj.)": "BPS",
-    "CPS(Adj.)": "CPS",
-    "SPS(Adj.)": "SPS",
-    "수정DPS(보통주, 연간현금)": "DPS",
-    "현금배당성향(%)": "현금배당성향",
-    "현금배당수익률(보통주, 연간, 수정주가)": "현금배당수익률",
-    "P/E(Adj., FY End)": "PER",
-    "P/B(Adj., FY End)": "PBR",
-    "P/C(Adj., FY End)": "PCR",
-    "P/S(Adj., FY End)": "PSR",
-    "P/FCF2(Adj., FY End)": "P/FCF",
-    "PEG(Adj., FY End, YoY)": "PEG",
-    "EV/EBITDA2": "EV/EBITDA",
-}
+from fnspace.index import fnspaceItems, creonIndex, marcapIndex, fnspaceNames
 
 
 def get_investing_info_data():
