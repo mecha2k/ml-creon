@@ -13,6 +13,7 @@ lerna-debug.log*
 
 agents
 src/fnspace/data
+src/data/large
 
 .DS_Store
 .vscode
