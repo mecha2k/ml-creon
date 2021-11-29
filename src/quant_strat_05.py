@@ -206,15 +206,13 @@ def confirm_strategy(start, fdr_df, fs_df):
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2020, 8, 1)
+    start = datetime(2012, 5, 1)
+    print(f"start : {start}")
 
     stime = time.time()
     fs_df, creon_df, fdr_df = get_investing_info_data()
-    for mon in range(2, 10):
-        start = datetime(2012, mon + 1, 1)
-        print(f"start : {start}")
-        results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
-        investing_yields(results)
+    results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
+    investing_yields(results)
 
     # confirm_strategy(start, fdr_df, fs_df)
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
