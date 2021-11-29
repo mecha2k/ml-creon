@@ -32,27 +32,6 @@ fnspaceNames = {
 }
 
 
-def get_stock_price_fdr(codes, start):
-    for dt in pd.date_range(start=start, end=datetime.now(), freq="12MS"):
-        fdr_df = list()
-        for code in codes:
-            df = fdr.DataReader(code, datetime(dt.year, 1, 1), datetime(dt.year, 12, 31))
-            if df.empty is False:
-                fdr_df.append(df)
-                print(f"code: {code} is appended...")
-        fdr_df = pd.concat(fdr_df, keys=codes, names=["Code"])
-        fdr_df.to_pickle(f"data/fdr_stock_{dt.year}.pkl")
-        print(f"fdr_stock_{dt.year} file (stocks: {len(fdr_df)}) saved...")
-
-
-def get_stock_price_fdr_file(start):
-    fdr_df = list()
-    for dt in pd.date_range(start=start, end=datetime.now(), freq="12MS"):
-        df = pd.read_pickle(f"data/fdr_stock_{dt.year}.pkl")
-        fdr_df.append(df)
-    return pd.concat(fdr_df)
-
-
 def get_investing_info_data():
     fs_df = pd.read_pickle(f"fnspace/data/fs_company_all_2021.pkl")
     fs_df = (
@@ -71,28 +50,11 @@ def get_investing_info_data():
 
     fdr_df = pd.read_pickle("data/large/marcap_data_all_2021.pkl")
 
-    # get stock prices from financeDataReader yearly
-    # get_stock_price_fdr(codes, start)
-    # financeDataReader stock price data from the year of 2000
-    # fdr_df = get_stock_price_fdr_file(start=datetime(2000, 1, 1))
-    # fdr_df = pd.read_pickle("data/large/fdr_stock_all_2021.pkl")
-    # fdr_df = fdr_df.reset_index().set_index("Date")
-
-    # codes = creon_df["code"].values
-    # names = creon_df["종목명"].values
-
     # df = marcap_data(start="2010-01-01", end="2021-12-31")
     # df = df.loc[df["Market"] == "KOSPI"]
     # df = df.loc[df["Code"].str.endswith("0")]
     # df.to_pickle("data/large/marcap_data_all_2021.pkl")
     # print(df)
-
-    # stocks = fdr.StockListing("KOSPI")
-    # stocks.to_pickle("data/stock_kospi.pkl")
-    # stocks = pd.read_pickle("data/stock_kospi.pkl")
-    # stocks = stocks.loc[stocks["Market"] == "KOSPI"].dropna(axis=0)
-    # stocks = stocks.loc[stocks["Symbol"].str.endswith("0")]
-    # print(stocks)
 
     return fs_df, creon_df, fdr_df
 

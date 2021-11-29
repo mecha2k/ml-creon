@@ -1,5 +1,5 @@
 marcapIndex = [
-    "code",
+    "Code",
     "종목명",
     "현재가",
     "시가",
