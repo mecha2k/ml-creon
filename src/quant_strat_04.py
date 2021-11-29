@@ -37,9 +37,10 @@ def get_stock_price_fdr(codes, start):
             df = fdr.DataReader(code, datetime(dt.year, 1, 1), datetime(dt.year, 12, 31))
             if df.empty is False:
                 fdr_df.append(df)
+                print(f"code: {code} is appended...")
         fdr_df = pd.concat(fdr_df, keys=codes, names=["code"])
         fdr_df.to_pickle(f"data/fdr_stock_{dt.year}.pkl")
-        print(f"fdr_stock_{dt.year} file saved...")
+        print(f"fdr_stock_{dt.year} file (stocks: {len(fdr_df)}) saved...")
 
 
 def get_stock_price_fdr_file(start):
@@ -48,6 +49,46 @@ def get_stock_price_fdr_file(start):
         df = pd.read_pickle(f"data/fdr_stock_{dt.year}.pkl")
         fdr_df.append(df)
     return pd.concat(fdr_df)
+
+
+def get_investing_info_data():
+    fs_df = pd.read_pickle(f"fnspace/data/fs_company_all_2021.pkl")
+    fs_df = (
+        fs_df.reset_index()
+        .rename(columns={"level_0": "code"})
+        .drop("level_1", axis=1)
+        .set_index("DATE")
+        .rename(columns=fnspaceNames)
+    )
+    fs_df.index = pd.to_datetime(fs_df.index)
+
+    market_df = pd.read_pickle("data/market_data.pkl")
+    market_df = market_df.reset_index().drop_duplicates(subset="code", keep="first")
+    market_df = market_df.dropna(axis=0).rename(columns={"name_y": "종목명"})
+    market_df = market_df[marcapIndex]
+
+    fdr_df = get_stock_price_fdr_file(start=datetime(2000, 1, 1))
+    fdr_df = fdr_df.reset_index().set_index("Date")
+
+    # codes = market_df["code"].values
+    # names = market_df["종목명"].values
+    #
+    # get stock prices from financeDataReader yearly
+    # get_stock_price_fdr(codes, start)
+
+    # df = marcap_data(start="2010-01", end="2010-03")
+    # df = df.loc[df["Market"] == "KOSPI"]
+    # df = df.loc[df["Code"].str.endswith("0")]
+    # print(df)
+
+    # stocks = fdr.StockListing("KOSPI")
+    # stocks.to_pickle("data/stock_kospi.pkl")
+    # stocks = pd.read_pickle("data/stock_kospi.pkl")
+    # stocks = stocks.loc[stocks["Market"] == "KOSPI"].dropna(axis=0)
+    # stocks = stocks.loc[stocks["Symbol"].str.endswith("0")]
+    # print(stocks)
+
+    return fs_df, market_df, fdr_df
 
 
 def analyze_strategy(stock_no, fdr_df, fs_df, start):
@@ -119,54 +160,29 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
     stocks = pd.concat(stocks, keys=times)
     stocks = stocks.reset_index().rename(columns={"level_0": "date"}).set_index("date")
 
-    return {"stocks": stocks, "yield": annual_yield}
+    return {"stocks": stocks, "yield": zip(times, annual_yield)}
 
 
-def quant_investing(stock_no, start):
-    fs_df = pd.read_pickle(f"fnspace/data/fs_company_all_2021.pkl")
-    fs_df = (
-        fs_df.reset_index()
-        .rename(columns={"level_0": "code"})
-        .drop("level_1", axis=1)
-        .set_index("DATE")
-        .rename(columns=fnspaceNames)
-    )
-    fs_df.index = pd.to_datetime(fs_df.index)
-
-    fdr_df = get_stock_price_fdr_file(start=start)
-    fdr_df = fdr_df.reset_index().set_index("Date")
-
-    results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
+def investing_yields(results):
     df = results["stocks"]
     df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
-    print(df.tail(10))
 
     returns = 1
-    for annual in results["yield"]:
+    periods = 0
+    for dt, annual in results["yield"]:
+        periods += 1.0
         returns *= annual
-        print(f"annual and total returns : {annual:.2f}, {returns:.2f}")
+        print(
+            f"annual, cum. yields ({dt.year}) : {(annual-1)*100:8,.1f}%, {(returns-1)*100:8,.1f}%"
+        )
 
-    CAGR = (pow(returns, 1 / len(results["yield"])) - 1) * 100
-    print(f"\nCAGR : {CAGR:.2f}%")
+    CAGR = (pow(returns, 1 / periods) - 1) * 100
+    print(f"\nCAGR : {CAGR:5,.2f}%\n")
 
 
-if __name__ == "__main__":
-    market_df = pd.read_pickle("data/market_data.pkl")
-    market_df = market_df.reset_index().drop_duplicates(subset="code", keep="first")
-    market_df = market_df.dropna(axis=0).rename(columns={"name_y": "종목명"})
-    market_df = market_df[marcapIndex]
-    codes = market_df["code"].values
-    names = market_df["종목명"].values
-
-    start = datetime(2012, 5, 1)
-
-    # get stock prices from financeDataReader yearly
-    # get_stock_price_fdr(codes, start)
-
-    for m in range(3, 10):
-        start = datetime(2012, m, 1)
-        print(f"start : {start}")
-        quant_investing(stock_no=10, start=start)
+def confirm_strategy(fdr_df, fs_df):
+    df = pd.read_csv("data/analysis_results.csv")
+    print(df)
 
     # codes = ["084690", "001120"]
     # df = get_stock_price_fdr_file(start=start)
@@ -181,3 +197,17 @@ if __name__ == "__main__":
     # df = df.drop("Change", axis=1).resample("MS").first()
     # df["Change"] = (1 + df["Close"].pct_change()).cumprod()
     # print(df)
+
+
+if __name__ == "__main__":
+    stock_no = 10
+    start = datetime(2012, 5, 1)
+
+    fs_df, market_df, fdr_df = get_investing_info_data()
+    # for m in range(3, 4):
+    #     start = datetime(2012, m, 1)
+    #     print(f"start : {start}")
+    #     results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
+    #     investing_yields(results)
+
+    confirm_strategy(fdr_df, fs_df)
