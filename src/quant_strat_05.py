@@ -154,7 +154,6 @@ def investing_yields(results):
 
 
 def confirm_strategy(start, fdr_df, fs_df):
-    codes = fs_df["Code"].unique()
     cand_df = pd.read_pickle("data/analysis_results.pkl")
     cand_df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
 
