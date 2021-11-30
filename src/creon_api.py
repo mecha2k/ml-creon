@@ -53,23 +53,13 @@ myIndex = [
 ]
 
 
-def get_market_data_creon():
-    load_dotenv(verbose=True)
-    id_ = os.getenv("creon_id")
-    pwd = os.getenv("creon_pwd")
-    cert = os.getenv("creon_cert")
-    creon_path = "C:/ProgramData/CREON/STARTER/coStarter.exe /prj:cp"
+def get_stock_index_data():
 
-    creon = Creon()
-    conn = creon.connect(id_=id_, pwd=pwd, pwdcert=cert, c_path=creon_path)
-    if conn is True:
-        print("connection established to creonPlus...")
+    pass
 
-    codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
-    print("kospi stock counts: ", len(codes))
 
-    data = list()
-    index = list()
+def get_market_data_creon(creon, codes):
+    data, index = list(), list()
     for code in codes:
         code = re.findall(r"\d+", code)
         index.append(code[0])
@@ -170,11 +160,51 @@ def analyze_market_data():
 
 
 if __name__ == "__main__":
-    # get_market_data_creon()
-    analyze_market_data()
+    load_dotenv(verbose=True)
+    id_ = os.getenv("creon_id")
+    pwd = os.getenv("creon_pwd")
+    cert = os.getenv("creon_cert")
+    creon_path = "C:/ProgramData/CREON/STARTER/coStarter.exe /prj:cp"
 
+    creon = Creon()
+    conn = creon.connect(id_=id_, pwd=pwd, pwdcert=cert, c_path=creon_path)
+    if conn is True:
+        print("connection established to creonPlus...")
+
+    codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
+    print("kospi stock counts: ", len(codes))
+    lists = creon.get_industry_lists()
+    print(lists)
+
+    get_market_data_creon(creon, codes)
+    get_stock_index_data()
+
+    # analyze_market_data()
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
     # Sample code collection
-
     # balance = creon.get_balance()
     # print(balance)
 

@@ -120,6 +120,22 @@ class Creon:
         res = self.obj_CpUtil_CpCodeMgr.GetStockListByMarket(code)
         return res
 
+    def get_stockindices(self, code):
+
+        pass
+
+    def get_industry_lists(self):
+        code1 = self.obj_CpUtil_CpCodeMgr.GetIndustryList()  # 증권산업업종 리스트
+        code2 = self.obj_CpUtil_CpCodeMgr.GetKosdaqIndustry1List()  # 코스닥업종 리스트
+
+        codeList = dict()
+        codes = code1 + code2
+        for code in codes:
+            name = self.obj_CpUtil_CpCodeMgr.CodeToName(code)
+            codeList[name] = code
+
+        return codeList
+
     def get_stockstatus(self, code):
         """
         code 에해당하는주식상태를반환한다

@@ -137,22 +137,25 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         df["매출총이익률(YoY)"] = df["매출총이익률"].pct_change()
         df["자산회전율"] = df["매출액"] / df["자산총계"]
         df["자산회전율(YoY)"] = df["자산회전율"].pct_change()
-        df["부채비율(YoY)"] = df["부채비율"].pct_change()
+        df["부채비율(YoY)"] = -df["부채비율"].pct_change()
+        df["ROA(YoY)"] = df["ROA"].pct_change()
+        df["영업현금-이익"] = df["영업현금흐름"] - df["영업이익"]
 
-        fscoreIndex = ["당기순이익", "영업현금흐름"]
-
-        # df["fscore1"] = df['당기순이익'] > 0 ? 1 : 0
-
-        # F-score (9)
-        # 당기순이익이 0 이상 인가?
-        # 영업현금흐름이 0 이상 인가?
-        # ROA가 전년대비 증가 했는가?
-        # 영업현금흐름이 순이익보다 높은가?
-        # 부채비율이 전년대비 감소했는가?
-        # 유동비율이 전년대비 증가했는가?
-        # 당해 신규주식 발행을 하지 않았는가?
-        # 매출총이익(매출총이익/매출)이 전년대비 증가했는가?
-        # 자산회전율(매출/자산)이 전년대비 증가했는가?
+        fscoreIndex = {
+            "fscore1": "당기순이익",  # 당기순이익 > 0
+            "fscore2": "영업현금흐름",  # 영업현금흐름 > 0
+            "fscore3": "ROA(YoY)",  # ROA(YoY) > 0
+            "fscore4": "영업현금-이익",  # 영업현금흐름 > 당기순이익
+            "fscore5": "부채비율(YoY)",  # 부채비율(YoY) < 0
+            "fscore6": "매출총이익률(YoY)",  # 매출총이익률(YoY) > 0
+            "fscore7": "자산회전율(YoY)",  # 자산회전율(매출/자산)(YoY) > 0
+        }
+        for key, value in fscoreIndex.items():
+            df[key] = 0
+            df.loc[df[value] > 0, key] = 1
+        df["fscore_tot"] = 0
+        for ind in fscoreIndex.keys():
+            df["fscore_tot"] += df[ind]
 
         df["PBR_rank"] = df["PBRc"].rank(ascending=True)
         df["PSR_rank"] = df["PSRc"].rank(ascending=True)
@@ -168,7 +171,6 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
             + df["PER_rank"]
             + df["PEG_rank"]
             + df["DIV_rank"]
-            # + df["EV_rank"]
         )
 
         df = df.sort_values(by=["rank_tot"], axis=0, ascending=True)
@@ -190,7 +192,7 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
 
 def investing_yields(results):
     df = results["stocks"]
-    df.to_pickle("data/analysis_results.pkl")
+    df.drop("level_1", axis=1).to_pickle("data/analysis_results.pkl")
 
     periods, returns = 0, 1
     for dt, annual, mdd in results["yield"]:
@@ -201,14 +203,14 @@ def investing_yields(results):
         print(states)
 
     CAGR = (pow(returns, 1 / periods) - 1) * 100
-    print(f"\nCAGR : {CAGR:5,.2f}%\n")
+    print(f"\nCAGR : {CAGR:5,.2f}%, mean MDD : {df['MDD'].mean()*100:5,.1f}%\n")
 
 
 def confirm_strategy(start, fdr_df, fs_df):
     cand_df = pd.read_pickle("data/analysis_results.pkl")
     cand_df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
 
-    quantstats_analysis(start, fdr_df, cand_df)
+    # quantstats_analysis(start, fdr_df, cand_df)
 
 
 if __name__ == "__main__":
@@ -218,13 +220,10 @@ if __name__ == "__main__":
 
     stime = time.time()
     fs_df, creon_df, fdr_df = get_investing_info_data()
-    # results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
-    # investing_yields(results)
-    # confirm_strategy(start, fdr_df, fs_df)
+    results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
+    investing_yields(results)
+    confirm_strategy(start, fdr_df, fs_df)
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
-
-    for row in creon_df.iterrows():
-        print(row["BPS"])
 
     # KOSPI 지수 가져오기 (벤치마크)
     # 매출액 성장률
