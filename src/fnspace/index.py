@@ -101,6 +101,9 @@ fnspaceItems = {
 }
 
 fnspaceNames = {
+    "영업활동으로인한현금흐름": "영업현금흐름",
+    "재무활동으로인한현금흐름": "재무현금흐름",
+    "투자활동으로인한현금흐름": "투자현금흐름",
     "Free Cash Flow2": "FCF",
     "EBITDA2": "EBITDA",
     "ROE(지배)": "ROE",

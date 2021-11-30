@@ -12,6 +12,34 @@ from pprint import pprint
 from fnspace.index import fnspaceItems, creonIndex, marcapIndex, fnspaceNames
 
 
+def quantstats_analysis(start, fdr_df, cand_df):
+    qs.extend_pandas()
+    for dtime in pd.date_range(start, datetime.now(), freq="12MS"):
+        if dtime.year == datetime.now().year:
+            break
+
+        sday = dtime.strftime("%Y-%m")
+        eday = datetime(dtime.year + 1, dtime.month - 1, dtime.day).strftime("%Y-%m")
+
+        codes = cand_df.loc[str(dtime.year)]["Code"].values
+        codes = codes[:1]
+        for code in codes:
+            stock = fdr_df.loc[fdr_df["Code"] == code]
+            stock = stock.loc[sday:eday]
+            title = f"{stock['Name'][0]}({code})"
+            stock = stock["Close"].pct_change()
+            qs.reports.metrics(stock, mode="basic")
+            stock.plot_earnings(
+                savefig=f"data/quantstats/qs_{dtime.year}_{title}.png", start_balance=10000
+            )
+            qs.reports.html(
+                returns=stock,
+                benchmark=None,
+                title=title,
+                output=f"data/quantstats/qs_{dtime.year}_{title}.html",
+            )
+
+
 def get_investing_info_data():
     fs_df = pd.read_pickle(f"fnspace/data/fs_company_all_2021.pkl")
     fs_df = (
@@ -104,6 +132,28 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         df = df.loc[df["PERc"] > 5.0]
         df = df.loc[df["PEGc"] > 0.0]
 
+        # calculate F-score (9 indices)
+        df["매출총이익률"] = df["매출총이익"] / df["매출액"]
+        df["매출총이익률(YoY)"] = df["매출총이익률"].pct_change()
+        df["자산회전율"] = df["매출액"] / df["자산총계"]
+        df["자산회전율(YoY)"] = df["자산회전율"].pct_change()
+        df["부채비율(YoY)"] = df["부채비율"].pct_change()
+
+        fscoreIndex = ["당기순이익", "영업현금흐름"]
+
+        # df["fscore1"] = df['당기순이익'] > 0 ? 1 : 0
+
+        # F-score (9)
+        # 당기순이익이 0 이상 인가?
+        # 영업현금흐름이 0 이상 인가?
+        # ROA가 전년대비 증가 했는가?
+        # 영업현금흐름이 순이익보다 높은가?
+        # 부채비율이 전년대비 감소했는가?
+        # 유동비율이 전년대비 증가했는가?
+        # 당해 신규주식 발행을 하지 않았는가?
+        # 매출총이익(매출총이익/매출)이 전년대비 증가했는가?
+        # 자산회전율(매출/자산)이 전년대비 증가했는가?
+
         df["PBR_rank"] = df["PBRc"].rank(ascending=True)
         df["PSR_rank"] = df["PSRc"].rank(ascending=True)
         df["PCR_rank"] = df["PCRc"].rank(ascending=True)
@@ -158,19 +208,23 @@ def confirm_strategy(start, fdr_df, fs_df):
     cand_df = pd.read_pickle("data/analysis_results.pkl")
     cand_df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
 
-    # qs.extend_pandas()
-    # sday = start.strftime("%Y-%m-%d")
-    # eday = datetime(start.year + 1, start.month, start.day).strftime("%Y-%m-%d")
-    # stock = fdr_df.loc[sday:eday]
-    #
-    # codes = ["120110"]
-    # for code in codes:
-    #     stock = stock.loc[stock["Code"] == code]
-    #     title = f"{stock['Name'][0]} ({code})"
-    #     stock = stock["Close"].pct_change()
-    #     stock.plot_earnings(savefig="data/qs_earnings.png", start_balance=10000)
-    #     qs.reports.html(returns=stock, benchmark=None, title=title, output=f"data/quantstats.html")
-    #     qs.reports.metrics(stock, mode="basic")
+    quantstats_analysis(start, fdr_df, cand_df)
+
+
+if __name__ == "__main__":
+    stock_no = 10
+    start = datetime(2012, 5, 1)
+    print(f"start : {start}, stock_no : {stock_no}")
+
+    stime = time.time()
+    fs_df, creon_df, fdr_df = get_investing_info_data()
+    # results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
+    # investing_yields(results)
+    # confirm_strategy(start, fdr_df, fs_df)
+    print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
+
+    for row in creon_df.iterrows():
+        print(row["BPS"])
 
     # KOSPI 지수 가져오기 (벤치마크)
     # 매출액 성장률
@@ -183,37 +237,3 @@ def confirm_strategy(start, fdr_df, fs_df):
     # fbprophet 예측 결과
     # 투자 시점 (월)의 차이에 의한 수익률 차이
     # 코스피 기준으로 알파, 샤프 지수 계산
-
-    # F-score (9)
-    # 당기순이익이 0 이상 인가?
-    # 영업현금흐름이 0 이상 인가?
-    # ROA가 전년대비 증가 했는가?
-    # 영업현금흐름이 순이익보다 높은가?
-    # 부채비율이 전년대비 감소했는가?
-    # 유동비율이 전년대비 증가했는가?
-    # 당해 신규주식 발행을 하지 않았는가?
-    # 매출총이익(매출총이익/매출)이 전년대비 증가했는가?
-    # 자산회전율(매출/자산)이 전년대비 증가했는가?
-
-    # codes = ["084690", "001120"]
-    # df = get_stock_price_fdr_file(start=start)
-    # df = df.reset_index().set_index("Date")
-    # df = df.sort_index().loc["2020-5-1":"2021-5-30"]
-    # for code in codes:
-    #     dfc = df.loc[df["Code"] == code].resample("MS").first()
-    #     dfc["Yield"] = (1 + dfc["Close"].pct_change()).cumprod()
-    #     print(dfc)
-
-
-if __name__ == "__main__":
-    stock_no = 10
-    start = datetime(2012, 5, 1)
-    print(f"start : {start}, stock_no : {stock_no}")
-
-    stime = time.time()
-    fs_df, creon_df, fdr_df = get_investing_info_data()
-    results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
-    investing_yields(results)
-
-    confirm_strategy(start, fdr_df, fs_df)
-    print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
