@@ -78,18 +78,39 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         df = df.loc[df["자본총계"] > equ_quantile]
         df = df.loc[df["자본총계"] > df["자본금"]]
 
-        df = df.loc[df["PBR"] > 0.5]
-        df = df.loc[df["PCR"] > 2.0]
-        df = df.loc[df["PER"] > 5.0]
-        df = df.loc[df["PEG"] > 0.0]
+        # correction for the values of the last year with current stock prices
+        fiscal_time = datetime(dtime.year - 1, 12, 31)
+        dft = fdr_df.loc[fiscal_time.strftime("%Y-%m")]
+        fiscal_day = dft.sort_index().index.unique()[-1].strftime("%Y-%m-%d")
+        fiscal_df = dft.loc[fiscal_day][["Code", "Close"]]
+        fiscal_df["Date_x"] = fiscal_day
 
-        df["PBR_rank"] = df["PBR"].rank(ascending=True)
-        df["PSR_rank"] = df["PSR"].rank(ascending=True)
-        df["PCR_rank"] = df["PCR"].rank(ascending=True)
-        df["PER_rank"] = df["PER"].rank(ascending=True)
-        df["PEG_rank"] = df["PEG"].rank(ascending=True)
+        dft = fdr_df.loc[dtime.strftime("%Y-%m")]
+        start_day = dft.sort_index().index.unique()[0].strftime("%Y-%m-%d")
+        start_df = dft.loc[start_day][["Code", "Close"]]
+        start_df["Date_y"] = start_day
+
+        ratio_df = pd.merge(fiscal_df, start_df, how="inner", on="Code")
+        ratio_df["Ratio"] = ratio_df["Close_y"] / ratio_df["Close_x"]
+
+        df = pd.merge(df, ratio_df, how="inner", on="Code")
+        adjustedIndex = ["PBR", "PCR", "PER", "PSR", "PEG", "P/FCF", "EV", "EV/EBITDA"]
+        for ind in adjustedIndex:
+            ad_ind = ind + "c"
+            df[ad_ind] = df[ind] * df["Ratio"]
+
+        df = df.loc[df["PBRc"] > 0.5]
+        df = df.loc[df["PCRc"] > 2.0]
+        df = df.loc[df["PERc"] > 5.0]
+        df = df.loc[df["PEGc"] > 0.0]
+
+        df["PBR_rank"] = df["PBRc"].rank(ascending=True)
+        df["PSR_rank"] = df["PSRc"].rank(ascending=True)
+        df["PCR_rank"] = df["PCRc"].rank(ascending=True)
+        df["PER_rank"] = df["PERc"].rank(ascending=True)
+        df["PEG_rank"] = df["PEGc"].rank(ascending=True)
         df["DIV_rank"] = df["현금배당수익률"].rank(ascending=False)
-        df["EV_rank"] = df["EV"].rank(ascending=False)
+        df["EV_rank"] = df["EVc"].rank(ascending=False)
         df["rank_tot"] = (
             df["PBR_rank"]
             + df["PSR_rank"]
@@ -121,15 +142,15 @@ def investing_yields(results):
     df = results["stocks"]
     df.to_pickle("data/analysis_results.pkl")
 
-    periods, rets = 0, 1
-    for dt, an, mdd in results["yield"]:
+    periods, returns = 0, 1
+    for dt, annual, mdd in results["yield"]:
         periods += 1.0
-        rets *= an
-        states = f"annual, cum. yields({dt.year}): {(an-1)*100:8,.1f}%, "
-        states += f"{(rets-1)*100:8,.1f}%, max MDD: {mdd*100:5,.1f}%"
+        returns *= annual
+        states = f"annual, cum. yields({dt.year}): {(annual-1)*100:6,.1f}%, "
+        states += f"{(returns-1)*100:6,.1f}%,  max MDD: {mdd*100:6,.1f}%"
         print(states)
 
-    CAGR = (pow(rets, 1 / periods) - 1) * 100
+    CAGR = (pow(returns, 1 / periods) - 1) * 100
     print(f"\nCAGR : {CAGR:5,.2f}%\n")
 
 
@@ -137,19 +158,19 @@ def confirm_strategy(start, fdr_df, fs_df):
     cand_df = pd.read_pickle("data/analysis_results.pkl")
     cand_df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
 
-    qs.extend_pandas()
-    sday = start.strftime("%Y-%m-%d")
-    eday = datetime(start.year + 1, start.month, start.day).strftime("%Y-%m-%d")
-    stock = fdr_df.loc[sday:eday]
-
-    codes = ["120110"]
-    for code in codes:
-        stock = stock.loc[stock["Code"] == code]
-        title = f"{stock['Name'][0]} ({code})"
-        stock = stock["Close"].pct_change()
-        stock.plot_earnings(savefig="data/qs_earnings.png", start_balance=10000)
-        qs.reports.html(returns=stock, benchmark=None, title=title, output=f"data/quantstats.html")
-        # qs.reports.metrics(stock, mode="basic")
+    # qs.extend_pandas()
+    # sday = start.strftime("%Y-%m-%d")
+    # eday = datetime(start.year + 1, start.month, start.day).strftime("%Y-%m-%d")
+    # stock = fdr_df.loc[sday:eday]
+    #
+    # codes = ["120110"]
+    # for code in codes:
+    #     stock = stock.loc[stock["Code"] == code]
+    #     title = f"{stock['Name'][0]} ({code})"
+    #     stock = stock["Close"].pct_change()
+    #     stock.plot_earnings(savefig="data/qs_earnings.png", start_balance=10000)
+    #     qs.reports.html(returns=stock, benchmark=None, title=title, output=f"data/quantstats.html")
+    #     qs.reports.metrics(stock, mode="basic")
 
     # KOSPI 지수 가져오기 (벤치마크)
     # 매출액 성장률
@@ -194,5 +215,5 @@ if __name__ == "__main__":
     results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
     investing_yields(results)
 
-    # confirm_strategy(start, fdr_df, fs_df)
+    confirm_strategy(start, fdr_df, fs_df)
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
