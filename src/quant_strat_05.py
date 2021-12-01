@@ -14,12 +14,17 @@ from fnspace.index import fnspaceItems, creonIndex, marcapIndex, fnspaceNames
 
 def quantstats_analysis(start, fdr_df, cand_df):
     qs.extend_pandas()
+    kospi_df = pd.read_pickle("data/kospi_index.pkl")
+
     for dtime in pd.date_range(start, datetime.now(), freq="12MS"):
         if dtime.year == datetime.now().year:
             break
 
         sday = dtime.strftime("%Y-%m")
         eday = datetime(dtime.year + 1, dtime.month - 1, dtime.day).strftime("%Y-%m")
+        bm_df = kospi_df.loc[sday:eday]
+        bm_df.to_csv("data/bm_df_kospi.csv")
+        bm_df = bm_df["close"].pct_change()
 
         codes = cand_df.loc[str(dtime.year)]["Code"].values
         codes = codes[:1]
@@ -34,7 +39,7 @@ def quantstats_analysis(start, fdr_df, cand_df):
             )
             qs.reports.html(
                 returns=stock,
-                benchmark=None,
+                benchmark=bm_df,
                 title=title,
                 output=f"data/quantstats/qs_{dtime.year}_{title}.html",
             )
@@ -210,18 +215,18 @@ def confirm_strategy(start, fdr_df, fs_df):
     cand_df = pd.read_pickle("data/analysis_results.pkl")
     cand_df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
 
-    # quantstats_analysis(start, fdr_df, cand_df)
+    quantstats_analysis(start, fdr_df, cand_df)
 
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2012, 5, 1)
+    start = datetime(2020, 5, 1)
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
     fs_df, creon_df, fdr_df = get_investing_info_data()
-    results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
-    investing_yields(results)
+    # results = analyze_strategy(stock_no, fdr_df, fs_df, start=start)
+    # investing_yields(results)
     confirm_strategy(start, fdr_df, fs_df)
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
 
