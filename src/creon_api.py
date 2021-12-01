@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 if platform.system() == "Windows":
     from creon import Creon
 
+
 myIndex = [
     "code",
     "종목명",
@@ -164,7 +165,7 @@ if __name__ == "__main__":
     id_ = os.getenv("creon_id")
     pwd = os.getenv("creon_pwd")
     cert = os.getenv("creon_cert")
-    creon_path = "C:/ProgramData/CREON/STARTER/coStarter.exe /prj:cp"
+    creon_path = "C:/Program Files (x86)/CREON/STARTER/coStarter.exe /prj:cp"
 
     creon = Creon()
     conn = creon.connect(id_=id_, pwd=pwd, pwdcert=cert, c_path=creon_path)
@@ -174,11 +175,10 @@ if __name__ == "__main__":
     codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
     print("kospi stock counts: ", len(codes))
     lists = creon.get_industry_lists()
-    print(lists)
+    pprint.pprint(lists)
 
-    get_market_data_creon(creon, codes)
-    get_stock_index_data()
-
+    # get_market_data_creon(creon, codes)
+    # get_stock_index_data()
     # analyze_market_data()
     #
     #
