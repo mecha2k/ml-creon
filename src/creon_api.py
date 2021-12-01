@@ -54,9 +54,24 @@ myIndex = [
 ]
 
 
-def get_stock_index_data():
+def get_stock_index_data(creon, start):
+    lists = creon.get_industry_lists()
+    pprint.pprint(lists)
 
-    pass
+    date_from = start.strftime("%Y%m%d")
+    df = pd.DataFrame(creon.get_chart(code="001", target="U", date_from=date_from))
+    df = df[["date", "open", "high", "low", "close", "volume", "price"]]
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    df.set_index("date", inplace=True)
+    df.to_pickle("data/kospi_index.pkl")
+    print(df.info())
+
+    df = pd.DataFrame(creon.get_chart(code="201", target="U", date_from=date_from))
+    df = df[["date", "open", "high", "low", "close", "volume", "price"]]
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    df.set_index("date", inplace=True)
+    df.to_pickle("data/kosdaq_index.pkl")
+    print(df.info())
 
 
 def get_market_data_creon(creon, codes):
@@ -172,14 +187,25 @@ if __name__ == "__main__":
     if conn is True:
         print("connection established to creonPlus...")
 
+    # mareye_df = pd.read_pickle("data/mareye.pkl")
+    # print(mareye_df.info())
+
+    # marcap_df = pd.read_pickle("data/marcap.pkl")
+    # print(marcap_df.info())
+
     codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
     print("kospi stock counts: ", len(codes))
-    lists = creon.get_industry_lists()
-    pprint.pprint(lists)
 
+    start = datetime(2000, 1, 1)
     # get_market_data_creon(creon, codes)
-    # get_stock_index_data()
+    # get_stock_index_data(creon, start)
     # analyze_market_data()
+
+    df = pd.read_pickle("data/kosdaq_index.pkl")
+    print(df)
+    df = pd.read_pickle("data/kosdaq_index.pkl")
+    print(df)
+
     #
     #
     #

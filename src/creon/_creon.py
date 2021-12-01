@@ -28,6 +28,7 @@ class Creon:
         self.obj_CpTrade_CpTd6033 = win32com.client.Dispatch("CpTrade.CpTd6033")
         self.obj_Dscbo1_CpConclusion = win32com.client.Dispatch("Dscbo1.CpConclusion")
         self.obj_CpTrade_CpTd0322 = win32com.client.Dispatch("CpTrade.CpTd0322")
+        self.obj_Dscbo1_StockIndexIR = win32com.client.Dispatch("Dscbo1.StockIndexIR")
 
         # contexts
         self.stockcur_handlers = {}  # 주식/업종/ELW시세 subscribe event handlers
@@ -120,40 +121,9 @@ class Creon:
         res = self.obj_CpUtil_CpCodeMgr.GetStockListByMarket(code)
         return res
 
-    def get_stockindices(self, code):
-    #     def info_7035() : 
-    # objRq = win32com.client.Dispatch("DsCbo1.StockIndexIR")
-    # objRq.SetInputValue(0, 'U001')      # 업종코드 - U + 업종코드
-
-    # while True:
-    #     waitRqLimit(Rqtype.SISE)
-    #     objRq.BlockRequest()
-
-    #     # 통신 및 통신 에러 처리
-    #     rqStatus = objRq.GetDibStatus()
-    #     if rqStatus != 0:
-    #         print("통신상태", rqStatus, objRq.GetDibMsg1())
-    #         return False
-
-    #     cnt = objRq.GetHeaderValue(1)
-    #     for i in range(cnt):
-    #         item = {}
-    #         item['시간'] = objRq.GetDataValue(0, i)  # 시간
-    #         item['지수'] = objRq.GetDataValue(1, i)  # 지수
-    #         item['전일대비'] = objRq.GetDataValue(2, i)  # 전일대비
-    #         item['거래량'] = objRq.GetDataValue(3, i)  # 거래량
-    #         item['거래대금'] = objRq.GetDataValue(4, i)  # 거래대금
-    #         print(item)
-
-    #     if objRq.Continue == False:
-    #         break    
-
-        pass
-
     def get_industry_lists(self):
         code1 = self.obj_CpUtil_CpCodeMgr.GetIndustryList()  # 증권산업업종 리스트
         code2 = self.obj_CpUtil_CpCodeMgr.GetKosdaqIndustry1List()  # 코스닥업종 리스트
-
         codeList = dict()
         codes = code1 + code2
         for code in codes:
