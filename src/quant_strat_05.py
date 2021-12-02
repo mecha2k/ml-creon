@@ -166,6 +166,7 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         df["fscore_tot"] = 0
         for ind in fscoreIndex.keys():
             df["fscore_tot"] += df[ind]
+        # df = df.loc[df["fscore_tot"] > 5]
 
         df["PBR_rank"] = df["PBRc"].rank(ascending=True)
         df["PSR_rank"] = df["PSRc"].rank(ascending=True)
@@ -222,7 +223,7 @@ def confirm_strategy(start, fdr_df, fs_df):
     cand_df = pd.read_pickle("data/analysis_results.pkl")
     cand_df.to_csv("data/analysis_results.csv", encoding="utf-8-sig")
 
-    quantstats_analysis(start, fdr_df, cand_df)
+    # quantstats_analysis(start, fdr_df, cand_df)
 
 
 if __name__ == "__main__":
