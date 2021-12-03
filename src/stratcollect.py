@@ -28,7 +28,6 @@ def find_fscore_stocks(df):
 
 
 def find_low_value_stocks(df):
-    print(df.head())
     df = df.loc[df["매출액"] > 10]
     vol_quantile = df["Volume"].quantile(q=0.3, interpolation="linear")
     df = df.loc[df["Volume"] > vol_quantile]
