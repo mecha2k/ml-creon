@@ -1,12 +1,3 @@
-import numpy as np
-import pandas as pd
-import time
-
-from datetime import datetime
-from quantstrat import QuantStrat
-import stratcollect
-
-
 def find_fscore_stocks(df):
     # calculate F-score (9 indices)
     df["매출총이익률"] = df["매출총이익"] / df["매출액"]
@@ -67,17 +58,3 @@ def find_low_value_stocks(df):
     )
 
     return df.sort_values(by=["rank_tot"], axis=0, ascending=True)
-
-
-if __name__ == "__main__":
-    stock_no = 10
-    start = datetime(2019, 5, 1)
-    qstrat = QuantStrat(stock_no=stock_no, start=start)
-    print(f"start : {start}, stock_no : {stock_no}")
-
-    stime = time.time()
-    # qstrat.update_investing_data()
-    qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
-    qstrat.get_investing_yields()
-    qstrat.quantstats_reports()
-    print(f"\nexecution time elapsed (sec) : {time.time()-stime}")

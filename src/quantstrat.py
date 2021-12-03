@@ -7,67 +7,6 @@ from datetime import datetime
 from fnspace.index import fnspaceItems, creonIndex, marcapIndex, fnspaceNames
 
 
-def find_fscore_stocks(df):
-    # calculate F-score (9 indices)
-    df["매출총이익률"] = df["매출총이익"] / df["매출액"]
-    df["매출총이익률(YoY)"] = df["매출총이익률"].pct_change()
-    df["자산회전율"] = df["매출액"] / df["자산총계"]
-    df["자산회전율(YoY)"] = df["자산회전율"].pct_change()
-    df["부채비율(YoY)"] = -df["부채비율"].pct_change()
-    df["ROA(YoY)"] = df["ROA"].pct_change()
-    df["영업현금-이익"] = df["영업현금흐름"] - df["영업이익"]
-
-    fscoreIndex = {
-        "fscore1": "당기순이익",  # 당기순이익 > 0
-        "fscore2": "영업현금흐름",  # 영업현금흐름 > 0
-        "fscore3": "ROA(YoY)",  # ROA(YoY) > 0
-        "fscore4": "영업현금-이익",  # 영업현금흐름 > 당기순이익
-        "fscore5": "부채비율(YoY)",  # 부채비율(YoY) < 0
-        "fscore6": "매출총이익률(YoY)",  # 매출총이익률(YoY) > 0
-        "fscore7": "자산회전율(YoY)",  # 자산회전율(매출/자산)(YoY) > 0
-    }
-    for key, value in fscoreIndex.items():
-        df[key] = 0
-        df.loc[df[value] > 0, key] = 1
-    df["fscore_tot"] = 0
-    for ind in fscoreIndex.keys():
-        df["fscore_tot"] += df[ind]
-
-    return df.sort_values(by=["fscore_tot"], axis=0, ascending=False)
-
-
-def find_low_value_stocks(df):
-    df = df.loc[df["매출액"] > 10]
-    vol_quantile = df["Volume"].quantile(q=0.3, interpolation="linear")
-    df = df.loc[df["Volume"] > vol_quantile]
-    equ_quantile = df["자본총계"].quantile(q=0.05, interpolation="linear")
-    df = df.loc[df["자본총계"] > equ_quantile]
-    df = df.loc[df["자본총계"] > df["자본금"]]
-
-    df = df.loc[df["PBRc"] > 0.5]
-    df = df.loc[df["PCRc"] > 2.0]
-    df = df.loc[df["PERc"] > 5.0]
-    df = df.loc[df["PEGc"] > 0.0]
-
-    df["PBR_rank"] = df["PBRc"].rank(ascending=True)
-    df["PSR_rank"] = df["PSRc"].rank(ascending=True)
-    df["PCR_rank"] = df["PCRc"].rank(ascending=True)
-    df["PER_rank"] = df["PERc"].rank(ascending=True)
-    df["PEG_rank"] = df["PEGc"].rank(ascending=True)
-    df["DIV_rank"] = df["현금배당수익률"].rank(ascending=False)
-    df["EV_rank"] = df["EVc"].rank(ascending=False)
-    df["rank_tot"] = (
-        df["PBR_rank"]
-        + df["PSR_rank"]
-        + df["PCR_rank"]
-        + df["PER_rank"]
-        + df["PEG_rank"]
-        + df["DIV_rank"]
-    )
-
-    return df.sort_values(by=["rank_tot"], axis=0, ascending=True)
-
-
 class QuantStrat:
     def __init__(self, stock_no, start):
         self.stock_no = stock_no
@@ -129,7 +68,7 @@ class QuantStrat:
         CAGR = (pow(returns, 1 / periods) - 1) * 100
         print(f"\nCAGR : {CAGR:5,.2f}%, mean MDD : {self.stocks['MDD'].mean()*100:5,.1f}%\n")
 
-    def quantstats_reports(self):
+    def quantstats_reports(self, nstock=1):
         qs.extend_pandas()
         for dtime in pd.date_range(self.start, datetime.now(), freq="12MS"):
             if dtime.year == datetime.now().year:
@@ -141,7 +80,7 @@ class QuantStrat:
             bm_df = bm_df["close"].pct_change()
 
             codes = self.stocks.loc[str(dtime.year)]["Code"].values
-            for code in codes[:1]:
+            for code in codes[:nstock]:
                 stock = self.fdr_df.loc[self.fdr_df["Code"] == code]
                 stock = stock.loc[sday:eday]
                 title = f"{stock['Name'][0]}({code})"
@@ -209,28 +148,24 @@ class QuantStrat:
 
         return df, bm_rets
 
-    def get_stocks_from_strategy(self):
+    def get_stocks_from_strategy(self, rankfunc):
         stocks, times, annual, bm_yields, mddmax = list(), list(), list(), list(), list()
         for dtime in pd.date_range(self.start, datetime.now(), freq="12MS"):
             if dtime.year == datetime.now().year:
                 break
 
             df, bm_rets = self.prepare_annual_dataframe(dtime=dtime)
-
-            # df = find_low_value_stocks(df)
-            df = find_fscore_stocks(df)
-
+            df = rankfunc(df)
             df = df.iloc[: self.stock_no]
 
+            cagr = 0
+            for code in df.index.values:
+                cagr += (df.at[code, "Yield"]) / self.stock_no
+            annual.append(cagr)
             stocks.append(df)
             times.append(dtime)
             mddmax.append(df["MDD"].min())
             bm_yields.append(bm_rets)
-
-            cagr = 0
-            for code in df.index.values:
-                cagr += (df.at[code, "Yield"]) / stock_no
-            annual.append(cagr)
 
         self.times = times
         self.annual = annual
@@ -246,14 +181,13 @@ class QuantStrat:
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2012, 5, 1)
+    start = datetime(2019, 5, 1)
     qstrat = QuantStrat(stock_no=stock_no, start=start)
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
     # qstrat.update_investing_data()
-    qstrat.get_stocks_from_strategy()
+    qstrat.get_stocks_from_strategy(find_low_value_stocks)
     qstrat.get_investing_yields()
-    # qstrat.stocks = pd.read_pickle("data/analysis_results.pkl")
     qstrat.quantstats_reports()
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
