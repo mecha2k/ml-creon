@@ -10,7 +10,7 @@ import stratcollect
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2019, 5, 1)
+    start = datetime(2012, 5, 1)
     qstrat = QuantStrat(stock_no=stock_no, start=start)
     print(f"start : {start}, stock_no : {stock_no}")
 

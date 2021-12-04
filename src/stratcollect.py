@@ -27,6 +27,10 @@ def find_fscore_stocks(df):
     return df.sort_values(by=["fscore_tot"], axis=0, ascending=False)
 
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
 def find_low_value_stocks(df):
     df = df.loc[df["매출액"] > 10]
     vol_quantile = df["Volume"].quantile(q=0.3, interpolation="linear")
@@ -34,6 +38,22 @@ def find_low_value_stocks(df):
     equ_quantile = df["자본총계"].quantile(q=0.05, interpolation="linear")
     df = df.loc[df["자본총계"] > equ_quantile]
     df = df.loc[df["자본총계"] > df["자본금"]]
+
+    # def find_outliers(df, sigma=3):
+    #     x = df["PBRc"]
+    #     mu = df["PBRc"].mean()
+    #     std = df["PBRc"].std()
+    #     if (x > mu + sigma * std) | (x < mu - sigma * std):
+    #         return 1
+    #     else:
+    #         return 0
+    #
+    # df_n = df[["PBRc", "PERc", "PCRc", "PEGc"]].copy()
+    # df_n["PBRo"] = df_n.apply(find_outliers, axis=1)
+    # print(df_n)
+    # sns.displot(df["PBRc"])
+    # plt.show()
+    # print(df_n.describe().mean)
 
     df = df.loc[df["PBRc"] > 0.5]
     df = df.loc[df["PCRc"] > 2.0]
