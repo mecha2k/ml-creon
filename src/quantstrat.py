@@ -1,10 +1,34 @@
 import numpy as np
 import pandas as pd
 import quantstats as qs
+import matplotlib.pyplot as plt
+import seaborn as sns
+import warnings
 import time
 
 from datetime import datetime
+from matplotlib.dates import DateFormatter, YearLocator, MonthLocator
 from fnspace.index import fnspaceItems, creonIndex, marcapIndex, fnspaceNames
+
+# plt.style.use("classic")
+plt.style.use("ggplot")
+# plt.style.use("seaborn")
+# plt.style.use("seaborn-paper")
+plt.rcParams["font.family"] = "D2Coding ligature"
+plt.rcParams["figure.figsize"] = [12, 8]
+plt.rcParams["figure.dpi"] = 300
+plt.rcParams["lines.linewidth"] = 2
+plt.rcParams["lines.linestyle"] = "-"
+plt.rcParams["axes.titlesize"] = 20
+plt.rcParams["axes.labelsize"] = 18
+plt.rcParams["lines.markersize"] = 5
+plt.rcParams["xtick.labelsize"] = 16
+plt.rcParams["ytick.labelsize"] = 16
+plt.set_cmap("cubehelix")
+sns.set_palette("cubehelix")
+# warnings.simplefilter(action="ignore", category=FutureWarning)
+
+COLORS = [plt.cm.cubehelix(x) for x in [0.1, 0.3, 0.5, 0.7]]
 
 
 class QuantStrat:
@@ -178,16 +202,55 @@ class QuantStrat:
         stocks.to_pickle("data/analysis_results.pkl")
         self.stocks = stocks
 
+    def plot_stock_annual_returns(self):
+        if self.stocks is None or self.stocks.empty:
+            self.stocks = pd.read_pickle("data/analysis_results.pkl")
+
+        for dtime in pd.date_range(self.start, datetime.now(), freq="12MS"):
+            if dtime.year == datetime.now().year:
+                break
+
+            sday = dtime.strftime("%Y-%m")
+            eday = datetime(dtime.year + 1, dtime.month - 1, dtime.day).strftime("%Y-%m")
+            bm_df = self.bm_df.loc[sday:eday]
+            bm_df = ((1 + bm_df["close"].pct_change()).cumprod() - 1) * 100
+
+            stock_dict = dict()
+            stock_dict["KOSPI"] = bm_df
+            codes = self.stocks.loc[str(dtime.year)]["Code"].values
+            for code in codes:
+                stock = self.fdr_df.loc[self.fdr_df["Code"] == code]
+                stock = stock.loc[sday:eday]
+                title = f"{stock['Name'][0]}({code})"
+                stock = ((1 + stock["Close"].pct_change().dropna(axis=0)).cumprod() - 1) * 100
+                stock_dict[title] = stock
+
+            stock_df = pd.concat(stock_dict.values(), keys=stock_dict.keys())
+            stock_df = stock_df.unstack(level=0).dropna(axis=0)
+
+            _, ax = plt.subplots()
+            # ax.plot(stock_df)
+            ax = stock_df.plot(title=f"{dtime.year}년 종목별 수익률")
+            ax.plot(bm_df, color="blue", linewidth="5")
+            ax.set(xlabel="Date", ylabel="Returns (%)")
+            ax.xaxis.set_major_locator(MonthLocator())
+            date_form = DateFormatter("%y-%m")
+            ax.xaxis.set_major_formatter(date_form)
+            plt.xticks(rotation=45)
+            plt.grid(alpha=0.5, linestyle="-")
+            plt.savefig(f"images/qs_{dtime.year}_stocks.png", bbox_inches="tight")
+
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2019, 5, 1)
+    start = datetime(2020, 5, 1)
     qstrat = QuantStrat(stock_no=stock_no, start=start)
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
     # qstrat.update_investing_data()
-    qstrat.get_stocks_from_strategy(find_low_value_stocks)
-    qstrat.get_investing_yields()
-    qstrat.quantstats_reports()
+    # qstrat.get_stocks_from_strategy(find_low_value_stocks)
+    # qstrat.get_investing_yields()
+    qstrat.plot_stock_annual_returns()
+    # qstrat.quantstats_reports()
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
