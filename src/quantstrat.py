@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 import time
+import stratcollect
 
 from datetime import datetime
 from matplotlib.dates import DateFormatter, YearLocator, MonthLocator
@@ -44,6 +45,7 @@ class QuantStrat:
         self.annual = None
         self.bm_yields = None
         self.mddmax = None
+        self.dtime = None
 
         self.get_investing_data()
 
@@ -178,7 +180,9 @@ class QuantStrat:
             if dtime.year == datetime.now().year:
                 break
 
+            mom_df = self.find_momentum_stocks(dtime=dtime).reset_index()
             df, bm_rets = self.prepare_annual_dataframe(dtime=dtime)
+            df = pd.merge(df, mom_df, how="inner", on="Code")
             df = rankfunc(df)
             df = df.iloc[: self.stock_no]
 
@@ -240,17 +244,33 @@ class QuantStrat:
             plt.grid(alpha=0.5, linestyle="-")
             plt.savefig(f"images/qs_{dtime.year}_stocks.png", bbox_inches="tight")
 
+    def find_momentum_stocks(self, dtime):
+        sday = datetime(dtime.year - 1, dtime.month, dtime.day).strftime("%Y-%m")
+        eday = datetime(dtime.year, dtime.month - 1, dtime.day).strftime("%Y-%m")
+        df = self.fdr_df[sday:eday].reset_index().set_index("Code")
+        codes = df.index.drop_duplicates().values
+        stocks = list()
+        for code in codes:
+            dfs = df.loc[[code]].sort_values(by="Date")[["Date", "Close"]].set_index("Date")
+            dfs["1y_rets"] = (1 + dfs["Close"].pct_change()).cumprod()
+            stocks.append(dfs.iloc[-1])
+        df = pd.concat(stocks, keys=codes, names=["Code", "Items"])
+        df = df.unstack(level=-1)
+        df = df.sort_values(by="1y_rets", ascending=False)
+
+        return df
+
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2020, 5, 1)
+    start = datetime(2012, 5, 1)
     qstrat = QuantStrat(stock_no=stock_no, start=start)
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
     # qstrat.update_investing_data()
-    # qstrat.get_stocks_from_strategy(find_low_value_stocks)
-    # qstrat.get_investing_yields()
+    qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
+    qstrat.get_investing_yields()
     qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
