@@ -260,17 +260,78 @@ class QuantStrat:
 
         return df
 
+    def get_asset_allocation(self):
+        if self.stocks is None or self.stocks.empty:
+            self.stocks = pd.read_pickle("data/analysis_results.pkl")
+
+        dtime = datetime(2020, 5, 1)
+        sday = datetime(dtime.year - 1, dtime.month, dtime.day).strftime("%Y-%m")
+        eday = datetime(dtime.year, dtime.month - 1, dtime.day).strftime("%Y-%m")
+        df = self.fdr_df[sday:eday].reset_index().set_index(["Code", "Date"])
+        codes = self.stocks["Code"].values
+        df = df.loc[codes][["Close"]].unstack(level=0).droplevel(level=0, axis=1)
+        df = df.pct_change().dropna()
+
+        ndays = len(df.index)
+        avg_df = df.mean(axis=0) * ndays
+        cov_df = df.cov(ddof=1) * ndays
+
+        portfolio_ret = lambda w, avg: np.sum(w * avg)
+        portfolio_vol = lambda w, avg, cov: np.sqrt(np.dot(w.T, np.dot(cov, w)))
+
+        # def get_efficient_frontier(avg_rtns, cov_mat, rtns_range):
+        #     efficient_portfolios = []
+        #     n_assets = len(avg_returns)
+        #     args = (avg_returns, cov_mat)
+        #     bounds = tuple((0, 1) for _ in range(n_assets))
+        #     initial_guess = n_assets * [
+        #         1.0 / n_assets,
+        #     ]
+        #     for ret in rtns_range:
+        #         constraints = (
+        #             {"type": "eq", "fun": lambda x: get_portf_rtn(x, avg_rtns) - ret},
+        #             {"type": "eq", "fun": lambda x: np.sum(x) - 1},
+        #         )
+        #         efficient_portfolio = sco.minimize(
+        #             get_portf_vol,
+        #             initial_guess,
+        #             args=args,
+        #             method="SLSQP",
+        #             constraints=constraints,
+        #             bounds=bounds,
+        #         )
+        #         efficient_portfolios.append(efficient_portfolio)
+        #     return efficient_portfolios
+        #
+        # rtns_range = np.linspace(-0.22, 0.32, 200)
+        # efficient_portfolios = get_efficient_frontier(avg_returns, cov_mat, rtns_range)
+
+        print(cov_df)
+        print(avg_df)
+        # codes = df.index.drop_duplicates().values
+        # stocks = list()
+        # for code in codes:
+        #     dfs = df.loc[[code]].sort_values(by="Date")[["Date", "Close"]].set_index("Date")
+        #     dfs["1y_rets"] = (1 + dfs["Close"].pct_change()).cumprod()
+        #     stocks.append(dfs.iloc[-1])
+        # df = pd.concat(stocks, keys=codes, names=["Code", "Items"])
+        # df = df.unstack(level=-1)
+        # df = df.sort_values(by="1y_rets", ascending=False)
+
+        return df
+
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2012, 5, 1)
+    start = datetime(2020, 5, 1)
     qstrat = QuantStrat(stock_no=stock_no, start=start)
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
+    qstrat.get_asset_allocation()
     # qstrat.update_investing_data()
-    qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
-    qstrat.get_investing_yields()
-    qstrat.plot_stock_annual_returns()
+    # qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
+    # qstrat.get_investing_yields()
+    # qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
