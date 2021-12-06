@@ -27,10 +27,6 @@ def find_fscore_stocks(df):
     return df.sort_values(by=["fscore_tot"], axis=0, ascending=False)
 
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-
 def find_low_value_stocks(df):
     df = df.loc[df["매출액"] > 10]
     vol_quantile = df["Volume"].quantile(q=0.3, interpolation="linear")
@@ -55,14 +51,14 @@ def find_low_value_stocks(df):
     # plt.show()
     # print(df_n.describe().mean)
 
-    # df = df.loc[df["PBRc"] > 0.5]
-    # df = df.loc[df["PCRc"] > 2.0]
-    # df = df.loc[df["PERc"] > 5.0]
-    # df = df.loc[df["PEGc"] > 0.0]
+    df = df.loc[df["PBRc"] > 0.5]
+    df = df.loc[df["PCRc"] > 2.0]
+    df = df.loc[df["PERc"] > 5.0]
+    df = df.loc[df["PEGc"] > 0.0]
 
-    df = df.loc[df["PBRc"] > 0.2]
-    df = df.loc[df["PCRc"] > 1.0]
-    df = df.loc[df["PERc"] > 3.0]
+    # df = df.loc[df["PBRc"] > 0.2]
+    # df = df.loc[df["PCRc"] > 1.0]
+    # df = df.loc[df["PERc"] > 3.0]
     # df = df.loc[df["PEGc"] > 0.0]
 
     df["MOM_rank"] = df["1y_rets"].rank(ascending=False)
@@ -80,7 +76,7 @@ def find_low_value_stocks(df):
         + df["PER_rank"]
         + df["PEG_rank"]
         + df["DIV_rank"]
-        + df["MOM_rank"]
+        # + df["MOM_rank"]
     )
     # df.to_csv("data/rank_data.csv", encoding="utf-8-sig")
 
