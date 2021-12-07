@@ -6,15 +6,14 @@ import seaborn as sns
 import warnings
 import time
 import stratcollect
+import scipy.optimize as sco
 
 from datetime import datetime
+from icecream import ic
 from matplotlib.dates import DateFormatter, YearLocator, MonthLocator
 from fnspace.index import fnspaceItems, creonIndex, marcapIndex, fnspaceNames
 
-# plt.style.use("classic")
 plt.style.use("ggplot")
-# plt.style.use("seaborn")
-# plt.style.use("seaborn-paper")
 plt.rcParams["font.family"] = "D2Coding ligature"
 plt.rcParams["figure.figsize"] = [12, 8]
 plt.rcParams["figure.dpi"] = 300
@@ -29,6 +28,7 @@ plt.set_cmap("cubehelix")
 sns.set_palette("cubehelix")
 # warnings.simplefilter(action="ignore", category=FutureWarning)
 
+np.random.seed(42)
 COLORS = [plt.cm.cubehelix(x) for x in [0.1, 0.3, 0.5, 0.7]]
 
 
@@ -272,51 +272,236 @@ class QuantStrat:
         df = df.loc[codes][["Close"]].unstack(level=0).droplevel(level=0, axis=1)
         df = df.pct_change().dropna()
 
+        npfs = 10 ** 5
         ndays = len(df.index)
+        ncodes = len(codes)
         avg_df = df.mean(axis=0) * ndays
         cov_df = df.cov(ddof=1) * ndays
+        ret_range = np.linspace(avg_df.min(), avg_df.max(), 200)
 
-        portfolio_ret = lambda w, avg: np.sum(w * avg)
-        portfolio_vol = lambda w, avg, cov: np.sqrt(np.dot(w.T, np.dot(cov, w)))
+        # Calculate portfolio metrics:
+        weights = np.random.random(size=(npfs, ncodes))
+        weights_sum = np.sum(weights, axis=1).reshape(-1, 1)
+        weights /= weights_sum
+        pf_ret = np.dot(weights, avg_df)
 
-        # def get_efficient_frontier(avg_rtns, cov_mat, rtns_range):
-        #     efficient_portfolios = []
-        #     n_assets = len(avg_returns)
-        #     args = (avg_returns, cov_mat)
-        #     bounds = tuple((0, 1) for _ in range(n_assets))
-        #     initial_guess = n_assets * [
-        #         1.0 / n_assets,
-        #     ]
-        #     for ret in rtns_range:
+        pf_vol = list()
+        for i in range(len(weights)):
+            pf_vol.append(np.sqrt(np.dot(weights[i].T, np.dot(cov_df, weights[i]))))
+        pf_vol = np.array(pf_vol)
+        ic(pf_vol.shape)
+        portf_sharpe_ratio = pf_ret / pf_vol
+        portf_results_df = pd.DataFrame(
+            {"returns": pf_ret, "volatility": pf_vol, "sharpe_ratio": portf_sharpe_ratio}
+        )
+        ic(portf_results_df.head())
+
+        # 8. Locate the points creating the Efficient Frontier:
+        N_POINTS = 100
+        pf_vol_ef = []
+        indices_to_skip = []
+        pf_ret_ef = np.linspace(
+            portf_results_df.returns.min(), portf_results_df.returns.max(), N_POINTS
+        )
+        pf_ret_ef = np.round(pf_ret_ef, 2)
+        pf_ret = np.round(pf_ret, 2)
+        for point_index in range(N_POINTS):
+            if pf_ret_ef[point_index] not in pf_ret:
+                indices_to_skip.append(point_index)
+                continue
+            matched_ind = np.where(pf_ret == pf_ret_ef[point_index])
+            pf_vol_ef.append(np.min(pf_vol[matched_ind]))
+        pf_ret_ef = np.delete(pf_ret_ef, indices_to_skip)
+
+        # 9. Plot the Efficient Frontier:
+        MARKS = ["o", "X", "d", "*"]
+        fig, ax = plt.subplots()
+        portf_results_df.plot(
+            kind="scatter",
+            x="volatility",
+            y="returns",
+            c="sharpe_ratio",
+            cmap="RdYlGn",
+            edgecolors="black",
+            ax=ax,
+        )
+        ax.set(xlabel="Volatility", ylabel="Expected Returns", title="Efficient Frontier")
+        ax.plot(pf_vol_ef, pf_ret_ef, "b--")
+        for asset_index in range(n_assets):
+            ax.scatter(
+                x=np.sqrt(cov_df.iloc[asset_index, asset_index]),
+                y=avg_df[asset_index],
+                marker=MARKS[asset_index],
+                s=150,
+                color="black",
+                label=risky_assets[asset_index],
+            )
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig("images/ch7_im8.png")
+
+        max_sharpe_ind = np.argmax(portf_results_df.sharpe_ratio)
+        max_sharpe_portf = portf_results_df.loc[max_sharpe_ind]
+
+        min_vol_ind = np.argmin(portf_results_df.volatility)
+        min_vol_portf = portf_results_df.loc[min_vol_ind]
+
+        print("Maximum Sharpe Ratio portfolio ----")
+        print("Performance")
+        for index, value in max_sharpe_portf.items():
+            print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
+        print("\nWeights")
+        for x, y in zip(risky_assets, weights[np.argmax(portf_results_df.sharpe_ratio)]):
+            print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
+
+        print("Minimum Volatility portfolio ----")
+        print("Performance")
+        for index, value in min_vol_portf.items():
+            print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
+        print("\nWeights")
+        for x, y in zip(risky_assets, weights[np.argmin(portf_results_df.volatility)]):
+            print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
+
+        fig, ax = plt.subplots()
+        portf_results_df.plot(
+            kind="scatter",
+            x="volatility",
+            y="returns",
+            c="sharpe_ratio",
+            cmap="RdYlGn",
+            edgecolors="black",
+            ax=ax,
+        )
+        ax.scatter(
+            x=max_sharpe_portf.volatility,
+            y=max_sharpe_portf.returns,
+            c="black",
+            marker="*",
+            s=200,
+            label="Max Sharpe Ratio",
+        )
+        ax.scatter(
+            x=min_vol_portf.volatility,
+            y=min_vol_portf.returns,
+            c="black",
+            marker="P",
+            s=200,
+            label="Minimum Volatility",
+        )
+        ax.set(xlabel="Volatility", ylabel="Expected Returns", title="Efficient Frontier")
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig("images/ch7_im11.png")
+
+        # get_pf_ret = lambda w, avg: np.sum(w * avg)
+        # get_pf_vol = lambda w, avg, cov: np.sqrt(np.dot(w.T, np.dot(cov, w)))
+        #
+        # def get_efficient_frontier(avg, cov, ret_range):
+        #     eff_pfs = list()
+        #     ncodes = len(avg)
+        #     args = (avg, cov)
+        #     bounds = tuple((0, 1) for _ in range(ncodes))
+        #     init_guess = ncodes * [1.0 / ncodes]
+        #     for ret in ret_range:
         #         constraints = (
-        #             {"type": "eq", "fun": lambda x: get_portf_rtn(x, avg_rtns) - ret},
+        #             {"type": "eq", "fun": lambda x: get_pf_ret(x, avg) - ret},
         #             {"type": "eq", "fun": lambda x: np.sum(x) - 1},
         #         )
-        #         efficient_portfolio = sco.minimize(
-        #             get_portf_vol,
-        #             initial_guess,
+        #         pf = sco.minimize(
+        #             get_pf_vol,
+        #             init_guess,
         #             args=args,
         #             method="SLSQP",
         #             constraints=constraints,
         #             bounds=bounds,
         #         )
-        #         efficient_portfolios.append(efficient_portfolio)
-        #     return efficient_portfolios
+        #         eff_pfs.append(pf)
+        #     return eff_pfs
         #
-        # rtns_range = np.linspace(-0.22, 0.32, 200)
-        # efficient_portfolios = get_efficient_frontier(avg_returns, cov_mat, rtns_range)
-
-        print(cov_df)
-        print(avg_df)
-        # codes = df.index.drop_duplicates().values
-        # stocks = list()
-        # for code in codes:
-        #     dfs = df.loc[[code]].sort_values(by="Date")[["Date", "Close"]].set_index("Date")
-        #     dfs["1y_rets"] = (1 + dfs["Close"].pct_change()).cumprod()
-        #     stocks.append(dfs.iloc[-1])
-        # df = pd.concat(stocks, keys=codes, names=["Code", "Items"])
-        # df = df.unstack(level=-1)
-        # df = df.sort_values(by="1y_rets", ascending=False)
+        # eff_pfs = get_efficient_frontier(avg_df, cov_df, ret_range)
+        # vol_range = [x["fun"] for x in eff_pfs]
+        #
+        # weights = np.random.random(size=(npfs, ncodes))
+        # weights_sum = np.sum(weights, axis=1).reshape(-1, 1)
+        # weights /= weights_sum
+        #
+        # pf_rets = np.dot(weights, avg_df)
+        # pf_vol = list()
+        # for i in range(len(weights)):
+        #     pf_vol.append(np.sqrt(np.dot(weights[i].T, np.dot(cov_df, weights[i]))))
+        # pf_vol = np.array(pf_vol)
+        # pf_sharpe = pf_rets / pf_vol
+        # pf_df = pd.DataFrame({"returns": pf_rets, "volatility": pf_vol, "sharpe_ratio": pf_sharpe})
+        #
+        # fig, ax = plt.subplots()
+        # pf_df.plot(
+        #     kind="scatter",
+        #     x="volatility",
+        #     y="returns",
+        #     c="sharpe_ratio",
+        #     cmap="RdYlGn",
+        #     edgecolors="black",
+        #     ax=ax,
+        # )
+        # ax.set_xlim(right=np.quantile(vol_range, 0.8))
+        # ax.plot(vol_range, ret_range, "b--", linewidth=3)
+        # ax.set(xlabel="Volatility", ylabel="Expected Returns", title="Efficient Frontier")
+        # plt.savefig("images/asset_alloc_01.png", bbox_inches="tight")
+        #
+        # # Identify the minimum volatility portfolio:
+        # min_vol_ind = np.argmin(vol_range)
+        # min_vol_pf_ret = ret_range[min_vol_ind]
+        # min_vol_pf_vol = eff_pfs[min_vol_ind]["fun"]
+        #
+        # min_vol_pf = {
+        #     "Return": min_vol_pf_ret,
+        #     "Volatility": min_vol_pf_vol,
+        #     "Sharpe Ratio": (min_vol_pf_ret / min_vol_pf_vol),
+        # }
+        #
+        # print("Minimum Volatility portfolio ----")
+        # print("Performance")
+        # for index, value in min_vol_pf.items():
+        #     print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
+        # print("\nWeights")
+        # for x, y in zip(codes, eff_pfs[min_vol_ind]["x"]):
+        #     print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
+        #
+        # def neg_sharpe_ratio(w, avg_rtns, cov_df, rf_rate):
+        #     portf_returns = np.sum(avg_rtns * w)
+        #     pf_volatility = np.sqrt(np.dot(w.T, np.dot(cov_df, w)))
+        #     portf_sharpe_ratio = (portf_returns - rf_rate) / pf_volatility
+        #     return -portf_sharpe_ratio
+        #
+        # # Find the optimized portfolio:
+        # RF_RATE = 0
+        # args = (avg_df, cov_df, RF_RATE)
+        # constraints = {"type": "eq", "fun": lambda x: np.sum(x) - 1}
+        # bounds = tuple((0, 1) for asset in range(ncodes))
+        # init_guess = ncodes * [1.0 / ncodes]
+        # max_sharpe_pf = sco.minimize(
+        #     neg_sharpe_ratio,
+        #     x0=init_guess,
+        #     args=args,
+        #     method="SLSQP",
+        #     bounds=bounds,
+        #     constraints=constraints,
+        # )
+        #
+        # # Extract information about the maximum Sharpe Ratio portfolio:
+        # max_sharpe_pf_w = max_sharpe_pf["x"]
+        # max_sharpe_pf = {
+        #     "Return": get_pf_ret(max_sharpe_pf_w, avg_df),
+        #     "Volatility": get_pf_vol(max_sharpe_pf_w, avg_df, cov_df),
+        #     "Sharpe Ratio": -max_sharpe_pf["fun"],
+        # }
+        # print("\nMaximum Sharpe Ratio portfolio ----")
+        # print("Performance")
+        # for index, value in max_sharpe_pf.items():
+        #     print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
+        # print("\nWeights")
+        # for x, y in zip(codes, max_sharpe_pf_w):
+        #     print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
 
         return df
 
@@ -328,10 +513,11 @@ if __name__ == "__main__":
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
-    qstrat.get_asset_allocation()
     # qstrat.update_investing_data()
     # qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
     # qstrat.get_investing_yields()
     # qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()
+    qstrat.get_asset_allocation()
+
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
