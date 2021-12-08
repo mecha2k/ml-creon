@@ -78,36 +78,18 @@ class QuantStrat:
         self.get_investing_data()
 
     def get_investing_yields(self):
+        periods, returns = 0, 1
+        results = zip(self.times, self.annual, self.mddmax, self.bm_yields)
+        for dt, annual, mdd, bm in results:
+            periods += 1.0
+            returns *= annual
+            states = f"annual, cum. yields({dt.year}): {(annual-1)*100:6,.1f}%, "
+            states += f"{(returns-1)*100:6,.1f}%,  max MDD: {mdd*100:6,.1f}%, "
+            states += f"kospi: {(bm-1)*100:6,.1f}%, alpha: {(annual-bm)*100:5,.1f}%"
+            print(states)
 
-        #             cagr = 0
-        #             for code in df.index.values:
-        #                 cagr += (df.at[code, "Yield"]) / self.stock_no
-        #             annual.append(cagr)
-        #             stocks.append(df)
-        #             times.append(dtime)
-        #             mddmax.append(df["MDD"].min())
-        #             bm_yields.append(bm_rets)
-        #
-        #         self.times = times
-        #         self.annual = annual
-        #         self.mddmax = mddmax
-        #         self.bm_yields = bm_yields
-
-        df = self.stocks.iloc[: self.stock_no]
-        print(df)
-
-        # periods, returns = 0, 1
-        # results = zip(self.times, self.annual, self.mddmax, self.bm_yields)
-        # for dt, annual, mdd, bm in results:
-        #     periods += 1.0
-        #     returns *= annual
-        #     states = f"annual, cum. yields({dt.year}): {(annual-1)*100:6,.1f}%, "
-        #     states += f"{(returns-1)*100:6,.1f}%,  max MDD: {mdd*100:6,.1f}%, "
-        #     states += f"kospi: {(bm-1)*100:6,.1f}%, alpha: {(annual-bm)*100:5,.1f}%"
-        #     print(states)
-        #
-        # CAGR = (pow(returns, 1 / periods) - 1) * 100
-        # print(f"\nCAGR : {CAGR:5,.2f}%, mean MDD : {self.stocks['MDD'].mean()*100:5,.1f}%\n")
+        CAGR = (pow(returns, 1 / periods) - 1) * 100
+        print(f"\nCAGR : {CAGR:5,.2f}%, mean MDD : {self.stocks['MDD'].mean()*100:5,.1f}%\n")
 
     def quantstats_reports(self, nstock=1):
         qs.extend_pandas()
@@ -189,6 +171,38 @@ class QuantStrat:
 
         return df, bm_rets
 
+    def get_stocks_from_strategy(self, rankfunc):
+        stocks, times, annual, bm_yields, mddmax = list(), list(), list(), list(), list()
+        for dtime in pd.date_range(self.start, datetime.now(), freq="12MS"):
+            if dtime.year == datetime.now().year:
+                break
+
+            mom_df = self.find_momentum_stocks(dtime=dtime).reset_index()
+            df, bm_rets = self.prepare_annual_dataframe(dtime=dtime)
+            df = pd.merge(df, mom_df, how="inner", on="Code")
+            df = rankfunc(df)
+            df = df.iloc[: self.stock_no]
+
+            cagr = 0
+            for code in df.index.values:
+                cagr += (df.at[code, "Yield"]) / self.stock_no
+            annual.append(cagr)
+            stocks.append(df)
+            times.append(dtime)
+            mddmax.append(df["MDD"].min())
+            bm_yields.append(bm_rets)
+
+        self.times = times
+        self.annual = annual
+        self.mddmax = mddmax
+        self.bm_yields = bm_yields
+
+        stocks = pd.concat(stocks, keys=times)
+        stocks = stocks.reset_index().rename(columns={"level_0": "date"}).set_index("date")
+        stocks = stocks.drop("level_1", axis=1)
+        stocks.to_pickle("data/analysis_results.pkl")
+        self.stocks = stocks
+
     def plot_stock_annual_returns(self):
         if self.stocks is None or self.stocks.empty:
             self.stocks = pd.read_pickle("data/analysis_results.pkl")
@@ -243,29 +257,11 @@ class QuantStrat:
 
         return df
 
-    def get_stocks_from_strategy(self, rankfunc):
-        stocks, times, annual, bm_yields, mddmax = list(), list(), list(), list(), list()
-        for dtime in pd.date_range(self.start, datetime.now(), freq="12MS"):
-            if dtime.year == datetime.now().year:
-                break
+    def get_asset_allocation(self):
+        if self.stocks is None or self.stocks.empty:
+            self.stocks = pd.read_pickle("data/analysis_results.pkl")
 
-            mom_df = self.find_momentum_stocks(dtime=dtime).reset_index()
-            df, bm_rets = self.prepare_annual_dataframe(dtime=dtime)
-            df = pd.merge(df, mom_df, how="inner", on="Code")
-            df = rankfunc(df)
-            df = df.iloc[: self.stock_no * 10]
-
-            stocks.append(df)
-            times.append(dtime)
-
-        stocks = pd.concat(stocks, keys=times)
-        stocks = stocks.reset_index().rename(columns={"level_0": "date"}).set_index("date")
-        stocks = stocks.drop("level_1", axis=1)
-        stocks.to_pickle("data/analysis_results.pkl")
-        self.times = times
-        self.stocks = stocks
-
-    def get_asset_allocation(self, dtime, plot=False):
+        dtime = datetime(2020, 5, 1)
         sday = datetime(dtime.year - 1, dtime.month, dtime.day).strftime("%Y-%m")
         eday = datetime(dtime.year, dtime.month - 1, dtime.day).strftime("%Y-%m")
         df = self.fdr_df[sday:eday].reset_index().set_index(["Code", "Date"])
@@ -279,6 +275,7 @@ class QuantStrat:
         ncodes = len(codes)
         avg_df = df.mean(axis=0) * ndays
         cov_df = df.cov(ddof=1) * ndays
+        ret_range = np.linspace(avg_df.min(), avg_df.max(), 200)
 
         # Calculate portfolio metrics:
         weights = np.random.random(size=(npfs, ncodes))
@@ -293,7 +290,7 @@ class QuantStrat:
         pf_sharpe = pf_ret / pf_vol
         pf_df = pd.DataFrame({"returns": pf_ret, "volatility": pf_vol, "sharpe_ratio": pf_sharpe})
 
-        # Locate the points creating the Efficient Frontier:
+        # 8. Locate the points creating the Efficient Frontier:
         npoints = 100
         pf_vol_ef = []
         inds_to_skip = []
@@ -314,20 +311,12 @@ class QuantStrat:
         min_vol_ind = np.argmin(pf_df.volatility)
         min_vol_pf = pf_df.loc[min_vol_ind]
 
-        wgts = weights[np.argmax(pf_df.sharpe_ratio)]
-        df = pd.DataFrame({"name": names, "code": codes, "weight": wgts}).sort_values(
-            by="weight", ascending=False
-        )
-
-        if plot is False:
-            return df
-
         print("Maximum Sharpe Ratio portfolio ----")
         print("Performance")
         for index, value in max_sharpe_pf.items():
             print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
         print("\nWeights")
-        for x, y in zip(codes, wgts):
+        for x, y in zip(codes, weights[np.argmax(pf_df.sharpe_ratio)]):
             print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
 
         print("\nMinimum Volatility portfolio ----")
@@ -365,6 +354,7 @@ class QuantStrat:
             s=200,
             label="Minimum Volatility",
         )
+        wgts = weights[np.argmax(pf_df.sharpe_ratio)]
         for ind in range(ncodes):
             annots = f"{names[ind]}({codes[ind]}):{wgts[ind]*100:.1f}%"
             x = np.sqrt(cov_df.iloc[ind, ind])
@@ -391,6 +381,116 @@ class QuantStrat:
         ax.set(xlabel="Volatility", ylabel="Expected Returns", title="Efficient Frontier")
         plt.savefig("images/asset_alloc_03.png", bbox_inches="tight")
 
+        # get_pf_ret = lambda w, avg: np.sum(w * avg)
+        # get_pf_vol = lambda w, avg, cov: np.sqrt(np.dot(w.T, np.dot(cov, w)))
+        #
+        # def get_efficient_frontier(avg, cov, ret_range):
+        #     eff_pfs = list()
+        #     ncodes = len(avg)
+        #     args = (avg, cov)
+        #     bounds = tuple((0, 1) for _ in range(ncodes))
+        #     init_guess = ncodes * [1.0 / ncodes]
+        #     for ret in ret_range:
+        #         constraints = (
+        #             {"type": "eq", "fun": lambda x: get_pf_ret(x, avg) - ret},
+        #             {"type": "eq", "fun": lambda x: np.sum(x) - 1},
+        #         )
+        #         pf = sco.minimize(
+        #             get_pf_vol,
+        #             init_guess,
+        #             args=args,
+        #             method="SLSQP",
+        #             constraints=constraints,
+        #             bounds=bounds,
+        #         )
+        #         eff_pfs.append(pf)
+        #     return eff_pfs
+        #
+        # eff_pfs = get_efficient_frontier(avg_df, cov_df, ret_range)
+        # vol_range = [x["fun"] for x in eff_pfs]
+        #
+        # weights = np.random.random(size=(npfs, ncodes))
+        # weights_sum = np.sum(weights, axis=1).reshape(-1, 1)
+        # weights /= weights_sum
+        #
+        # pf_rets = np.dot(weights, avg_df)
+        # pf_vol = list()
+        # for i in range(len(weights)):
+        #     pf_vol.append(np.sqrt(np.dot(weights[i].T, np.dot(cov_df, weights[i]))))
+        # pf_vol = np.array(pf_vol)
+        # pf_sharpe = pf_rets / pf_vol
+        # pf_df = pd.DataFrame({"returns": pf_rets, "volatility": pf_vol, "sharpe_ratio": pf_sharpe})
+        #
+        # fig, ax = plt.subplots()
+        # pf_df.plot(
+        #     kind="scatter",
+        #     x="volatility",
+        #     y="returns",
+        #     c="sharpe_ratio",
+        #     cmap="RdYlGn",
+        #     edgecolors="black",
+        #     ax=ax,
+        # )
+        # ax.set_xlim(right=np.quantile(vol_range, 0.8))
+        # ax.plot(vol_range, ret_range, "b--", linewidth=3)
+        # ax.set(xlabel="Volatility", ylabel="Expected Returns", title="Efficient Frontier")
+        # plt.savefig("images/asset_alloc_01.png", bbox_inches="tight")
+        #
+        # # Identify the minimum volatility portfolio:
+        # min_vol_ind = np.argmin(vol_range)
+        # min_vol_pf_ret = ret_range[min_vol_ind]
+        # min_vol_pf_vol = eff_pfs[min_vol_ind]["fun"]
+        #
+        # min_vol_pf = {
+        #     "Return": min_vol_pf_ret,
+        #     "Volatility": min_vol_pf_vol,
+        #     "Sharpe Ratio": (min_vol_pf_ret / min_vol_pf_vol),
+        # }
+        #
+        # print("Minimum Volatility portfolio ----")
+        # print("Performance")
+        # for index, value in min_vol_pf.items():
+        #     print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
+        # print("\nWeights")
+        # for x, y in zip(codes, eff_pfs[min_vol_ind]["x"]):
+        #     print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
+        #
+        # def neg_sharpe_ratio(w, avg_rtns, cov_df, rf_rate):
+        #     portf_returns = np.sum(avg_rtns * w)
+        #     pf_volatility = np.sqrt(np.dot(w.T, np.dot(cov_df, w)))
+        #     pf_sharpe = (portf_returns - rf_rate) / pf_volatility
+        #     return -pf_sharpe
+        #
+        # # Find the optimized portfolio:
+        # RF_RATE = 0
+        # args = (avg_df, cov_df, RF_RATE)
+        # constraints = {"type": "eq", "fun": lambda x: np.sum(x) - 1}
+        # bounds = tuple((0, 1) for asset in range(ncodes))
+        # init_guess = ncodes * [1.0 / ncodes]
+        # max_sharpe_pf = sco.minimize(
+        #     neg_sharpe_ratio,
+        #     x0=init_guess,
+        #     args=args,
+        #     method="SLSQP",
+        #     bounds=bounds,
+        #     constraints=constraints,
+        # )
+        #
+        # # Extract information about the maximum Sharpe Ratio portfolio:
+        # max_sharpe_pf_w = max_sharpe_pf["x"]
+        # max_sharpe_pf = {
+        #     "Return": get_pf_ret(max_sharpe_pf_w, avg_df),
+        #     "Volatility": get_pf_vol(max_sharpe_pf_w, avg_df, cov_df),
+        #     "Sharpe Ratio": -max_sharpe_pf["fun"],
+        # }
+        # print("\nMaximum Sharpe Ratio portfolio ----")
+        # print("Performance")
+        # for index, value in max_sharpe_pf.items():
+        #     print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
+        # print("\nWeights")
+        # for x, y in zip(codes, max_sharpe_pf_w):
+        #     print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
+
         return df
 
 
@@ -402,17 +502,10 @@ if __name__ == "__main__":
 
     stime = time.time()
     # qstrat.update_investing_data()
-    qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
+    # qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
     # qstrat.get_investing_yields()
     # qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()
-
-    # if qstrat.stocks is None or qstrat.stocks.empty:
-    #     qstrat.stocks = pd.read_pickle("data/analysis_results.pkl")
-    #
-    # dtime = datetime(2020, 5, 1)
-    # df = qstrat.get_asset_allocation(dtime=dtime, plot=False)
-    # df = df.loc[df["weight"] > 0.05]
-    # print(df)
+    qstrat.get_asset_allocation()
 
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
