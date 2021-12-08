@@ -93,7 +93,7 @@ class QuantStrat:
         #         self.mddmax = mddmax
         #         self.bm_yields = bm_yields
 
-        df = self.stocks.iloc[: self.stock_no]
+        df = self.stocks
         print(df)
 
         # periods, returns = 0, 1
@@ -253,7 +253,6 @@ class QuantStrat:
             df, bm_rets = self.prepare_annual_dataframe(dtime=dtime)
             df = pd.merge(df, mom_df, how="inner", on="Code")
             df = rankfunc(df)
-            df = df.iloc[: self.stock_no * 10]
 
             stocks.append(df)
             times.append(dtime)
@@ -265,12 +264,12 @@ class QuantStrat:
         self.times = times
         self.stocks = stocks
 
-    def get_asset_allocation(self, dtime, plot=False):
+    def get_asset_allocation(self, dtime, stocks, plot=False):
         sday = datetime(dtime.year - 1, dtime.month, dtime.day).strftime("%Y-%m")
         eday = datetime(dtime.year, dtime.month - 1, dtime.day).strftime("%Y-%m")
         df = self.fdr_df[sday:eday].reset_index().set_index(["Code", "Date"])
-        codes = self.stocks["Code"].values
-        names = self.stocks["Name"].values
+        codes = stocks["Code"].values
+        names = stocks["Name"].values
         df = df.loc[codes][["Close"]].unstack(level=0).droplevel(level=0, axis=1)
         df = df.pct_change().dropna()
 
@@ -393,6 +392,43 @@ class QuantStrat:
 
         return df
 
+    def optimize_stocks_from_MPT(self, weight=0.05):
+        for dtime in pd.date_range(self.start, datetime.now(), freq="12MS"):
+            if dtime.year == datetime.now().year:
+                break
+
+            stocks = self.stocks.loc[dtime.strftime("%Y-%m")].copy()
+            stocks = stocks.sort_values(by="rank_tot", ascending=True)
+            nstock = len(stocks)
+            while True:
+                istock = np.random.choice(nstock, self.stock_no)
+                df = stocks.iloc[list(istock)]
+                print(df)
+                df = self.get_asset_allocation(dtime, df, plot=False)
+                df = df.loc[df["weight"] > weight]
+                if len(df) == self.stock_no:
+                    codes = df["code"].values
+                    stocks = stocks.loc[stocks["Code"].isin(codes)]
+                    break
+                print(len(df))
+                print(df["weight"].values)
+
+            print(stocks)
+
+            # print(c)
+            #
+            # sday = dtime.strftime("%Y-%m")
+            # eday = datetime(dtime.year + 1, dtime.month - 1, dtime.day).strftime("%Y-%m")
+            # bm_df = self.bm_df.loc[sday:eday]
+            # bm_df = bm_df["close"].pct_change()
+            #
+            # codes = self.stocks.loc[str(dtime.year)]["Code"].values
+            # for code in codes[:nstock]:
+            #     stock = self.fdr_df.loc[self.fdr_df["Code"] == code]
+            #     stock = stock.loc[sday:eday]
+            #     title = f"{stock['Name'][0]}({code})"
+            #     stock = stock["Close"].pct_change()
+
 
 if __name__ == "__main__":
     stock_no = 10
@@ -404,6 +440,7 @@ if __name__ == "__main__":
     # qstrat.update_investing_data()
     qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
     # qstrat.get_investing_yields()
+    qstrat.optimize_stocks_from_MPT()
     # qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()
 
