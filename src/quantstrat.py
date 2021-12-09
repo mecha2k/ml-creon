@@ -205,8 +205,7 @@ class QuantStrat:
             stock_df = pd.concat(stock_dict.values(), keys=stock_dict.keys())
             stock_df = stock_df.unstack(level=0).dropna(axis=0)
 
-            _, ax = plt.subplots()
-            # ax.plot(stock_df)
+            fig, ax = plt.subplots()
             ax = stock_df.plot(title=f"{dtime.year}년 종목별 수익률")
             ax.plot(bm_df, color="blue", linewidth="5")
             ax.set(xlabel="Date", ylabel="Returns (%)")
@@ -216,6 +215,7 @@ class QuantStrat:
             plt.xticks(rotation=45)
             plt.grid(alpha=0.5, linestyle="-")
             plt.savefig(f"images/qs_{dtime.year}_stocks.png", bbox_inches="tight")
+            plt.close(fig)
 
     def find_momentum_stocks(self, dtime):
         sday = datetime(dtime.year - 1, dtime.month, dtime.day).strftime("%Y-%m")
@@ -413,17 +413,9 @@ if __name__ == "__main__":
     stime = time.time()
     # qstrat.update_investing_data()
     qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
-    qstrat.optimize_stocks_from_MPT()
-    # qstrat.get_investing_yields()
+    # qstrat.optimize_stocks_from_MPT()
+    qstrat.get_investing_yields()
     qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()
-
-    # if qstrat.stocks is None or qstrat.stocks.empty:
-    #     qstrat.stocks = pd.read_pickle("data/analysis_results.pkl")
-    #
-    # dtime = datetime(2020, 5, 1)
-    # df = qstrat.get_asset_allocation(dtime=dtime, plot=False)
-    # df = df.loc[df["weight"] > 0.05]
-    # print(df)
 
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
