@@ -41,6 +41,9 @@ class QuantStrat:
         self.fdr_df = None
         self.creon_df = None
         self.stocks = None
+        self.assets = None
+        self.weights = None
+        self.benchmark = None
         self.times = None
         self.fstock_list = list()
 
@@ -78,36 +81,23 @@ class QuantStrat:
         self.get_investing_data()
 
     def get_investing_yields(self):
+        periods, cumulative, mdd_avg = 0, 1, 0
+        for df, wg, dt, bm in zip(self.assets, self.weights, self.times, self.benchmark):
+            cagr = 0
+            for code, year_rets in zip(df["Code"].values, df["Yield"].values):
+                cagr += year_rets * wg[code]
+            mdd_max = df["MDD"].min()
+            mdd_avg = df["MDD"].mean()
 
-        #             cagr = 0
-        #             for code in df.index.values:
-        #                 cagr += (df.at[code, "Yield"]) / self.stock_no
-        #             annual.append(cagr)
-        #             stocks.append(df)
-        #             times.append(dtime)
-        #             mddmax.append(df["MDD"].min())
-        #             bm_yields.append(bm_rets)
-        #
-        #         self.times = times
-        #         self.annual = annual
-        #         self.mddmax = mddmax
-        #         self.bm_yields = bm_yields
+            periods += 1.0
+            cumulative *= cagr
+            states = f"연간,누적수익률({dt.year}년,{len(df)}종목): {(cagr-1)*100:6,.1f}%, "
+            states += f"{(cumulative-1)*100:6,.1f}%, 최대MDD: {mdd_max*100:6,.1f}%, "
+            states += f"코스피: {(bm-1)*100:6,.1f}%, 알파: {(cagr-bm)*100:5,.1f}%"
+            print(states)
 
-        df = self.stocks
-        print(df)
-
-        # periods, returns = 0, 1
-        # results = zip(self.times, self.annual, self.mddmax, self.bm_yields)
-        # for dt, annual, mdd, bm in results:
-        #     periods += 1.0
-        #     returns *= annual
-        #     states = f"annual, cum. yields({dt.year}): {(annual-1)*100:6,.1f}%, "
-        #     states += f"{(returns-1)*100:6,.1f}%,  max MDD: {mdd*100:6,.1f}%, "
-        #     states += f"kospi: {(bm-1)*100:6,.1f}%, alpha: {(annual-bm)*100:5,.1f}%"
-        #     print(states)
-        #
-        # CAGR = (pow(returns, 1 / periods) - 1) * 100
-        # print(f"\nCAGR : {CAGR:5,.2f}%, mean MDD : {self.stocks['MDD'].mean()*100:5,.1f}%\n")
+        CAGR = (pow(cumulative, 1 / periods) - 1) * 100
+        print(f"\nCAGR : {CAGR:5,.2f}%, mean MDD : {mdd_avg*100:5,.1f}%\n")
 
     def quantstats_reports(self, nstock=1):
         qs.extend_pandas()
@@ -244,7 +234,7 @@ class QuantStrat:
         return df
 
     def get_stocks_from_strategy(self, rankfunc):
-        stocks, times, annual, bm_yields, mddmax = list(), list(), list(), list(), list()
+        stocks, assets, weights, times, benchmark = [], [], [], [], []
         for dtime in pd.date_range(self.start, datetime.now(), freq="12MS"):
             if dtime.year == datetime.now().year:
                 break
@@ -253,16 +243,27 @@ class QuantStrat:
             df, bm_rets = self.prepare_annual_dataframe(dtime=dtime)
             df = pd.merge(df, mom_df, how="inner", on="Code")
             df = rankfunc(df)
+            asset_df = df.iloc[: self.stock_no]
 
             stocks.append(df)
             times.append(dtime)
+            assets.append(asset_df)
+            benchmark.append(bm_rets)
+            codes = asset_df["Code"].values
+            weight = self.stock_no * [1 / self.stock_no]
+            weight = {key: value for key, value in zip(codes, weight)}
+            weights.append(weight)
 
         stocks = pd.concat(stocks, keys=times)
         stocks = stocks.reset_index().rename(columns={"level_0": "date"}).set_index("date")
         stocks = stocks.drop("level_1", axis=1)
         stocks.to_pickle("data/analysis_results.pkl")
+
         self.times = times
         self.stocks = stocks
+        self.assets = assets
+        self.weights = weights
+        self.benchmark = benchmark
 
     def get_asset_allocation(self, dtime, stocks, plot=False):
         sday = datetime(dtime.year - 1, dtime.month, dtime.day).strftime("%Y-%m")
@@ -325,17 +326,7 @@ class QuantStrat:
         print("Performance")
         for index, value in max_sharpe_pf.items():
             print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
-        print("\nWeights")
-        for x, y in zip(codes, wgts):
-            print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
-
-        print("\nMinimum Volatility portfolio ----")
-        print("Performance")
-        for index, value in min_vol_pf.items():
-            print(f"{index}: {100 * value:.2f}% ", end="", flush=True)
-        print("\nWeights")
-        for x, y in zip(codes, weights[np.argmin(pf_df.volatility)]):
-            print(f"{x}: {100 * y:.2f}% ", end="", flush=True)
+        print("\n")
 
         fig, ax = plt.subplots()
         pf_df.plot(
@@ -388,60 +379,43 @@ class QuantStrat:
         ax.axhline(y=0, color="red", linewidth=0.5, linestyle="dashed")
         ax.legend(loc="best", fontsize=8, shadow=True, edgecolor="black")
         ax.set(xlabel="Volatility", ylabel="Expected Returns", title="Efficient Frontier")
-        plt.savefig("images/asset_alloc_03.png", bbox_inches="tight")
+        plt.savefig(f"images/asset_alloc_{dtime.year}.png", bbox_inches="tight")
 
         return df
 
     def optimize_stocks_from_MPT(self, weight=0.05):
+        assets, weights = list(), list()
         for dtime in pd.date_range(self.start, datetime.now(), freq="12MS"):
             if dtime.year == datetime.now().year:
                 break
 
             stocks = self.stocks.loc[dtime.strftime("%Y-%m")].copy()
             stocks = stocks.sort_values(by="rank_tot", ascending=True)
-            nstock = len(stocks)
-            while True:
-                istock = np.random.choice(nstock, self.stock_no)
-                df = stocks.iloc[list(istock)]
-                print(df)
-                df = self.get_asset_allocation(dtime, df, plot=False)
-                df = df.loc[df["weight"] > weight]
-                if len(df) == self.stock_no:
-                    codes = df["code"].values
-                    stocks = stocks.loc[stocks["Code"].isin(codes)]
-                    break
-                print(len(df))
-                print(df["weight"].values)
 
-            print(stocks)
+            df = stocks.iloc[: 2 * self.stock_no]
+            asset_df = self.get_asset_allocation(dtime, df, plot=True)
+            asset_df = asset_df.loc[asset_df["weight"] > weight]
+            codes = asset_df["code"].values
+            w_dict = {key: value for key, value in zip(codes, asset_df["weight"].values)}
+            assets.append(df.loc[df["Code"].isin(codes)])
+            weights.append(w_dict)
 
-            # print(c)
-            #
-            # sday = dtime.strftime("%Y-%m")
-            # eday = datetime(dtime.year + 1, dtime.month - 1, dtime.day).strftime("%Y-%m")
-            # bm_df = self.bm_df.loc[sday:eday]
-            # bm_df = bm_df["close"].pct_change()
-            #
-            # codes = self.stocks.loc[str(dtime.year)]["Code"].values
-            # for code in codes[:nstock]:
-            #     stock = self.fdr_df.loc[self.fdr_df["Code"] == code]
-            #     stock = stock.loc[sday:eday]
-            #     title = f"{stock['Name'][0]}({code})"
-            #     stock = stock["Close"].pct_change()
+        self.assets = assets
+        self.weights = weights
 
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2020, 5, 1)
+    start = datetime(2012, 5, 1)
     qstrat = QuantStrat(stock_no=stock_no, start=start)
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
     # qstrat.update_investing_data()
     qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
-    # qstrat.get_investing_yields()
     qstrat.optimize_stocks_from_MPT()
-    # qstrat.plot_stock_annual_returns()
+    # qstrat.get_investing_yields()
+    qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()
 
     # if qstrat.stocks is None or qstrat.stocks.empty:
