@@ -408,14 +408,14 @@ class QuantStrat:
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2020, 5, 1)
+    start = datetime(2012, 5, 1)
     qstrat = QuantStrat(stock_no=stock_no, start=start)
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
     # qstrat.update_investing_data()
     qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
-    qstrat.optimize_stocks_from_MPT()
+    # qstrat.optimize_stocks_from_MPT(weight=0.02)
     qstrat.get_investing_yields()
     # qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()

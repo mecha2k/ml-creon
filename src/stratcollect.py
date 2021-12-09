@@ -81,36 +81,3 @@ def find_low_value_stocks(df):
     # df.to_csv("data/rank_data.csv", encoding="utf-8-sig")
 
     return df.sort_values(by=["rank_tot"], axis=0, ascending=True)
-
-
-def find_low_value_stocks_with_MPT(df):
-    df = df.loc[df["매출액"] > 1]
-    vol_quantile = df["Volume"].quantile(q=0.2, interpolation="linear")
-    df = df.loc[df["Volume"] > vol_quantile]
-    equ_quantile = df["자본총계"].quantile(q=0.05, interpolation="linear")
-    df = df.loc[df["자본총계"] > equ_quantile]
-    df = df.loc[df["자본총계"] > df["자본금"]]
-
-    df = df.loc[df["PBRc"] > 0.5]
-    df = df.loc[df["PCRc"] > 2.0]
-    df = df.loc[df["PERc"] > 5.0]
-    df = df.loc[df["PEGc"] > 0.0]
-
-    df["MOM_rank"] = df["1y_rets"].rank(ascending=False)
-    df["PBR_rank"] = df["PBRc"].rank(ascending=True)
-    df["PSR_rank"] = df["PSRc"].rank(ascending=True)
-    df["PCR_rank"] = df["PCRc"].rank(ascending=True)
-    df["PER_rank"] = df["PERc"].rank(ascending=True)
-    df["PEG_rank"] = df["PEGc"].rank(ascending=True)
-    df["DIV_rank"] = df["현금배당수익률"].rank(ascending=False)
-    df["EV_rank"] = df["EVc"].rank(ascending=False)
-    df["rank_tot"] = (
-        df["PBR_rank"]
-        + df["PSR_rank"]
-        + df["PCR_rank"]
-        + df["PER_rank"]
-        + df["PEG_rank"]
-        + df["DIV_rank"]
-    )
-
-    return df.sort_values(by=["rank_tot"], axis=0, ascending=True)
