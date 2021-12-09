@@ -28,7 +28,6 @@ plt.set_cmap("cubehelix")
 sns.set_palette("cubehelix")
 # warnings.simplefilter(action="ignore", category=FutureWarning)
 
-np.random.seed(42)
 COLORS = [plt.cm.cubehelix(x) for x in [0.1, 0.3, 0.5, 0.7]]
 
 
@@ -91,7 +90,7 @@ class QuantStrat:
 
             periods += 1.0
             cumulative *= cagr
-            states = f"연간,누적수익률({dt.year}년,{len(df)}종목): {(cagr-1)*100:6,.1f}%, "
+            states = f"연간,누적수익률({dt.year}년,{len(df):3d}종목): {(cagr-1)*100:6,.1f}%, "
             states += f"{(cumulative-1)*100:6,.1f}%, 최대MDD: {mdd_max*100:6,.1f}%, "
             states += f"코스피: {(bm-1)*100:6,.1f}%, 알파: {(cagr-bm)*100:5,.1f}%"
             print(states)
@@ -281,6 +280,7 @@ class QuantStrat:
         cov_df = df.cov(ddof=1) * ndays
 
         # Calculate portfolio metrics:
+        np.random.seed(42)
         weights = np.random.random(size=(npfs, ncodes))
         weights_sum = np.sum(weights, axis=1).reshape(-1, 1)
         weights /= weights_sum
@@ -314,7 +314,7 @@ class QuantStrat:
         min_vol_ind = np.argmin(pf_df.volatility)
         min_vol_pf = pf_df.loc[min_vol_ind]
 
-        wgts = weights[np.argmax(pf_df.sharpe_ratio)]
+        wgts = weights[max_sharpe_ind]
         df = pd.DataFrame({"name": names, "code": codes, "weight": wgts}).sort_values(
             by="weight", ascending=False
         )
@@ -393,10 +393,12 @@ class QuantStrat:
             stocks = stocks.sort_values(by="rank_tot", ascending=True)
 
             df = stocks.iloc[: 2 * self.stock_no]
-            asset_df = self.get_asset_allocation(dtime, df, plot=True)
+            asset_df = self.get_asset_allocation(dtime, df, plot=False)
+
             asset_df = asset_df.loc[asset_df["weight"] > weight]
             codes = asset_df["code"].values
-            w_dict = {key: value for key, value in zip(codes, asset_df["weight"].values)}
+            weight_asset = asset_df["weight"].values / asset_df["weight"].sum()
+            w_dict = {key: value for key, value in zip(codes, weight_asset)}
             assets.append(df.loc[df["Code"].isin(codes)])
             weights.append(w_dict)
 
@@ -406,16 +408,16 @@ class QuantStrat:
 
 if __name__ == "__main__":
     stock_no = 10
-    start = datetime(2012, 5, 1)
+    start = datetime(2020, 5, 1)
     qstrat = QuantStrat(stock_no=stock_no, start=start)
     print(f"start : {start}, stock_no : {stock_no}")
 
     stime = time.time()
     # qstrat.update_investing_data()
     qstrat.get_stocks_from_strategy(stratcollect.find_low_value_stocks)
-    # qstrat.optimize_stocks_from_MPT()
+    qstrat.optimize_stocks_from_MPT()
     qstrat.get_investing_yields()
-    qstrat.plot_stock_annual_returns()
+    # qstrat.plot_stock_annual_returns()
     # qstrat.quantstats_reports()
 
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
