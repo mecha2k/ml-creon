@@ -187,67 +187,43 @@ if __name__ == "__main__":
     if conn is True:
         print("connection established to creonPlus...")
 
-    # mareye_df = pd.read_pickle("data/mareye.pkl")
-    # print(mareye_df.info())
+    mareye_df = pd.read_pickle("data/mareye.pkl")
+    print(mareye_df.info())
 
-    # marcap_df = pd.read_pickle("data/marcap.pkl")
-    # print(marcap_df.info())
+    marcap_df = pd.read_pickle("data/marcap.pkl")
+    print(marcap_df.info())
 
     codes = creon.get_stockcodes(1)  # kospi=1, kosdaq=2
     print("kospi stock counts: ", len(codes))
 
-    start = datetime(2000, 1, 1)
+    # start = datetime(2019, 1, 1)
     # get_market_data_creon(creon, codes)
     # get_stock_index_data(creon, start)
     # analyze_market_data()
 
-    df = pd.read_pickle("data/kosdaq_index.pkl")
-    print(df)
-    df = pd.read_pickle("data/kosdaq_index.pkl")
-    print(df)
+    # df = pd.read_pickle("data/kosdaq_index.pkl")
+    # print(df)
+    # df = pd.read_pickle("data/kosdaq_index.pkl")
+    # print(df)
 
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    #
     # Sample code collection
-    # balance = creon.get_balance()
-    # print(balance)
+    balance = creon.get_balance()
+    print(balance)
 
-    # ticker = "005930"
-    # index = codes.index("A" + ticker)
+    ticker = "005930"
+    index = codes.index("A" + ticker)
 
-    # status = creon.get_stockstatus(codes[index])
-    # print(status)
+    status = creon.get_stockstatus(codes[index])
+    print(status)
 
-    # features = creon.get_stockfeatures(codes[index])
-    # pprint.pp(features)
+    features = creon.get_stockfeatures(codes[index])
+    pprint.pp(features)
 
-    # start = datetime(2021, 10, 1)
-    # end = datetime(2021, 12, 31)
+    start = datetime(2021, 10, 1)
+    end = datetime(2021, 12, 31)
 
-    # data = creon.get_chart(code=ticker, n=60)
-    # print(data[0])
+    data = creon.get_chart(code=ticker, n=60)
+    print(data[0])
 
     # data = creon.get_chart(code=ticker, target="A", unit="D", date_from=start.strftime("%Y%m%d"))
     # print(data[0])
