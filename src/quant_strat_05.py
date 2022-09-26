@@ -14,12 +14,17 @@ from fnspace.index import fnspaceItems, creonIndex, marcapIndex, fnspaceNames
 
 def quantstats_analysis(start, fdr_df, cand_df):
     qs.extend_pandas()
+    kospi_df = pd.read_pickle("data/kospi_index.pkl")
+
     for dtime in pd.date_range(start, datetime.now(), freq="12MS"):
         if dtime.year == datetime.now().year:
             break
 
         sday = dtime.strftime("%Y-%m")
         eday = datetime(dtime.year + 1, dtime.month - 1, dtime.day).strftime("%Y-%m")
+        bm_df = kospi_df.loc[sday:eday]
+        bm_df.to_csv("data/bm_df_kospi.csv")
+        bm_df = bm_df["close"].pct_change()
 
         codes = cand_df.loc[str(dtime.year)]["Code"].values
         codes = codes[:1]
@@ -34,7 +39,7 @@ def quantstats_analysis(start, fdr_df, cand_df):
             )
             qs.reports.html(
                 returns=stock,
-                benchmark=None,
+                benchmark=bm_df,
                 title=title,
                 output=f"data/quantstats/qs_{dtime.year}_{title}.html",
             )
@@ -69,7 +74,9 @@ def get_investing_info_data():
 
 
 def analyze_strategy(stock_no, fdr_df, fs_df, start):
-    stocks, times, annual, mddmax = list(), list(), list(), list()
+    kospi_df = pd.read_pickle("data/kospi_index.pkl")
+
+    stocks, times, annual, bm_yields, mddmax = list(), list(), list(), list(), list()
     for dtime in pd.date_range(start, datetime.now(), freq="12MS"):
         if dtime.year == datetime.now().year:
             break
@@ -81,6 +88,9 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         sday = dtime.strftime("%Y-%m-%d")
         eday = datetime(dtime.year + 1, dtime.month, dtime.day).strftime("%Y-%m-%d")
         df = fdr_df.loc[sday:eday]
+        bm_df = kospi_df.loc[sday:eday].copy()
+        bm_df["yield"] = (1 + bm_df["close"].pct_change()).cumprod()
+        bm_rets = bm_df["yield"].iloc[-1]
 
         # MDD (Maximum Drawdown)
         # CAGR (Compound Annual Growth Rate)
@@ -156,6 +166,7 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         df["fscore_tot"] = 0
         for ind in fscoreIndex.keys():
             df["fscore_tot"] += df[ind]
+        # df = df.loc[df["fscore_tot"] > 5]
 
         df["PBR_rank"] = df["PBRc"].rank(ascending=True)
         df["PSR_rank"] = df["PSRc"].rank(ascending=True)
@@ -178,6 +189,7 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
         stocks.append(df)
         times.append(dtime)
         mddmax.append(df["MDD"].min())
+        bm_yields.append(bm_rets)
 
         cagr = 0
         for code in df.index.values:
@@ -187,7 +199,7 @@ def analyze_strategy(stock_no, fdr_df, fs_df, start):
     stocks = pd.concat(stocks, keys=times)
     stocks = stocks.reset_index().rename(columns={"level_0": "date"}).set_index("date")
 
-    return {"stocks": stocks, "yield": zip(times, annual, mddmax)}
+    return {"stocks": stocks, "yield": zip(times, annual, mddmax, bm_yields)}
 
 
 def investing_yields(results):
@@ -195,11 +207,12 @@ def investing_yields(results):
     df.drop("level_1", axis=1).to_pickle("data/analysis_results.pkl")
 
     periods, returns = 0, 1
-    for dt, annual, mdd in results["yield"]:
+    for dt, annual, mdd, bm in results["yield"]:
         periods += 1.0
         returns *= annual
         states = f"annual, cum. yields({dt.year}): {(annual-1)*100:6,.1f}%, "
-        states += f"{(returns-1)*100:6,.1f}%,  max MDD: {mdd*100:6,.1f}%"
+        states += f"{(returns-1)*100:6,.1f}%,  max MDD: {mdd*100:6,.1f}%, "
+        states += f"kospi: {(bm-1)*100:6,.1f}%, alpha: {(annual-bm)*100:5,.1f}%"
         print(states)
 
     CAGR = (pow(returns, 1 / periods) - 1) * 100
@@ -225,7 +238,26 @@ if __name__ == "__main__":
     confirm_strategy(start, fdr_df, fs_df)
     print(f"\nexecution time elapsed (sec) : {time.time()-stime}")
 
-    # KOSPI 지수 가져오기 (벤치마크)
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #
     # 매출액 성장률
     # 부채비율
     # 이자보상비율
